@@ -1,0 +1,11 @@
+{
+  "name": "NeuralForge - AI Model Platform",
+  "short_name": "NeuralForge",
+  "description": "Download, merge, and run AI models locally with offline support",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0e1a",
+  "theme_color": "#0a0e1a",
+  "orientation": "any",
+  "icons": []
+}
