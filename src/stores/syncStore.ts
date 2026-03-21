@@ -5,17 +5,27 @@ import { useForgeStore } from './forgeStore';
 import { useChatStore } from './chatStore';
 import { useSettingsStore } from './settingsStore';
 
+// ── Helper to get API base URL ───────────────────────────────
+function getApiBase(): string {
+  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    return `${window.location.origin}/api`;
+  }
+  return 'http://localhost:3001/api';
+}
+
 interface SyncState {
   lastChecksum: string | null;
   lastSyncedAt: string | null;
   isSyncing: boolean;
   syncError: string | null;
   autoSyncEnabled: boolean;
-  syncInterval: number; // seconds
+  syncInterval: number;
   deviceCount: number;
   devices: Array<{ id: string; name: string; platform: string; lastSeen: string }>;
 
-  // Actions
   pushSync: () => Promise<void>;
   pullSync: () => Promise<void>;
   fullSync: () => Promise<void>;
@@ -73,17 +83,14 @@ export const useSyncStore = create<SyncState>()(
           const result = await syncService.pullSync(lastChecksum);
 
           if (result.success && result.data) {
-            // Update local stores with server data
             if (result.hasChanges) {
               const forgeStore = useForgeStore.getState();
               const chatStore = useChatStore.getState();
 
-              // Merge forged models
               if (result.data.forgedModels.length > 0) {
                 await forgeStore.loadForgedModels();
               }
 
-              // Merge chat sessions
               if (result.data.chatSessions.length > 0) {
                 await chatStore.loadSessions();
               }
@@ -158,7 +165,7 @@ if (typeof window !== 'undefined') {
     if (store.autoSyncEnabled && navigator.onLine && !store.isSyncing) {
       store.fullSync();
     }
-  }, 60000); // Every 60 seconds
+  }, 60000);
 
   // Sync when coming back online
   window.addEventListener('online', () => {
@@ -172,15 +179,17 @@ if (typeof window !== 'undefined') {
   window.addEventListener('beforeunload', () => {
     const store = useSyncStore.getState();
     if (store.autoSyncEnabled) {
-      // Best-effort sync via sendBeacon
       const data = {
         deviceId: localStorage.getItem('modelforge-device-id'),
         forgedModels: useForgeStore.getState().forgedModels,
         chatSessions: useChatStore.getState().sessions,
         settings: useSettingsStore.getState().settings,
       };
+
+      const beaconUrl = getApiBase();
+
       navigator.sendBeacon(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/sync/push`,
+        `${beaconUrl}/sync/push`,
         new Blob([JSON.stringify(data)], { type: 'application/json' })
       );
     }
