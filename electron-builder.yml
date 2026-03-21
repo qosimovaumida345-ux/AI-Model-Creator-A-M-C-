@@ -1,0 +1,61 @@
+appId: com.modelforge.app
+productName: Model Forge
+copyright: Copyright © 2024 Model Forge
+
+directories:
+  output: builds
+  buildResources: build-resources
+
+files:
+  - dist/**/*
+  - electron/main.js
+  - electron/preload.js
+  - server/dist/**/*
+  - bin/**/*
+  - "!node_modules"
+
+extraResources:
+  - from: server/dist
+    to: server/dist
+  - from: server/data
+    to: server/data
+    filter:
+      - "**/*"
+  - from: bin/${os}
+    to: bin
+    filter:
+      - "**/*"
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build-resources/icon.ico
+  artifactName: ModelForge-Setup.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Model Forge
+  deleteAppDataOnUninstall: false
+
+mac:
+  target:
+    - target: dmg
+      arch: [universal]
+  icon: build-resources/icon.icns
+  category: public.app-category.developer-tools
+  artifactName: ModelForge.${ext}
+
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+  icon: build-resources/icons
+  category: Development
+  artifactName: ModelForge.${ext}
+
+publish: null
