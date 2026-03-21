@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ForgeConfig } from '@/types';
 import { DEFAULT_FORGE_CONFIG } from '@/types';
-import * as forgeApi from '@/services/api';
+import * as forgeApi from '@/services/forgeApi';
 
 interface Dataset {
   id: string;
@@ -50,7 +50,6 @@ interface TrainingJob {
 }
 
 interface ForgeState {
-  // Wizard state
   currentStep: number;
   selectedBaseModel: string | null;
   selectedBaseModelName: string | null;
@@ -61,19 +60,16 @@ interface ForgeState {
   systemPrompt: string;
   avatar: string;
 
-  // Data
   datasets: Dataset[];
   forgedModels: ForgedModel[];
   activeTrainingJob: TrainingJob | null;
   trainableModelIds: string[];
 
-  // UI
   isTraining: boolean;
   isUploading: boolean;
   error: string | null;
   unsubscribe: (() => void) | null;
 
-  // Actions
   setStep: (step: number) => void;
   nextStep: () => void;
   prevStep: () => void;
@@ -123,18 +119,18 @@ export const useForgeStore = create<ForgeState>()(
       error: null,
       unsubscribe: null,
 
-      setStep: (step) => set({ currentStep: step }),
+      setStep: (step: number) => set({ currentStep: step }),
       nextStep: () => set((s) => ({ currentStep: Math.min(s.currentStep + 1, 5) })),
       prevStep: () => set((s) => ({ currentStep: Math.max(s.currentStep - 1, 1) })),
-      setBaseModel: (id, name) => set({ selectedBaseModel: id, selectedBaseModelName: name }),
-      setDataset: (id) => set({ selectedDatasetId: id }),
-      updateConfig: (patch) => set((s) => ({ config: { ...s.config, ...patch } })),
-      setModelName: (name) => set({ modelName: name }),
-      setModelDescription: (desc) => set({ modelDescription: desc }),
-      setSystemPrompt: (prompt) => set({ systemPrompt: prompt }),
-      setAvatar: (avatar) => set({ avatar }),
+      setBaseModel: (id: string, name: string) => set({ selectedBaseModel: id, selectedBaseModelName: name }),
+      setDataset: (id: string) => set({ selectedDatasetId: id }),
+      updateConfig: (patch: Partial<ForgeConfig>) => set((s) => ({ config: { ...s.config, ...patch } })),
+      setModelName: (name: string) => set({ modelName: name }),
+      setModelDescription: (desc: string) => set({ modelDescription: desc }),
+      setSystemPrompt: (prompt: string) => set({ systemPrompt: prompt }),
+      setAvatar: (avatar: string) => set({ avatar }),
 
-      uploadDataset: async (file) => {
+      uploadDataset: async (file: File) => {
         set({ isUploading: true, error: null });
         try {
           const ds = await forgeApi.uploadDataset(file);
@@ -148,7 +144,7 @@ export const useForgeStore = create<ForgeState>()(
         }
       },
 
-      pasteDataset: async (content, name, format) => {
+      pasteDataset: async (content: string, name: string, format: string) => {
         set({ isUploading: true, error: null });
         try {
           const ds = await forgeApi.pasteDataset(content, name, format);
@@ -166,10 +162,12 @@ export const useForgeStore = create<ForgeState>()(
         try {
           const datasets = await forgeApi.fetchDatasets();
           set({ datasets });
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       },
 
-      deleteDataset: async (id) => {
+      deleteDataset: async (id: string) => {
         await forgeApi.deleteDataset(id);
         set((s) => ({
           datasets: s.datasets.filter((d) => d.id !== id),
@@ -181,10 +179,12 @@ export const useForgeStore = create<ForgeState>()(
         try {
           const models = await forgeApi.fetchForgedModels();
           set({ forgedModels: models });
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       },
 
-      deleteForgedModel: async (id) => {
+      deleteForgedModel: async (id: string) => {
         await forgeApi.deleteForgedModel(id);
         set((s) => ({ forgedModels: s.forgedModels.filter((m) => m.id !== id) }));
       },
@@ -193,7 +193,9 @@ export const useForgeStore = create<ForgeState>()(
         try {
           const ids = await forgeApi.fetchTrainableModels();
           set({ trainableModelIds: ids });
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       },
 
       startTraining: async () => {
@@ -215,7 +217,6 @@ export const useForgeStore = create<ForgeState>()(
             avatar: s.avatar,
           });
           set({ activeTrainingJob: result.job });
-          // Subscribe to updates
           get().subscribeToTraining(result.job.id);
         } catch (err: unknown) {
           set({ error: err instanceof Error ? err.message : 'Training failed', isTraining: false });
@@ -231,20 +232,20 @@ export const useForgeStore = create<ForgeState>()(
         }
       },
 
-      subscribeToTraining: (jobId) => {
+      subscribeToTraining: (jobId: string) => {
         const { unsubscribe: prev } = get();
         prev?.();
 
         const unsub = forgeApi.subscribeToTraining(
           jobId,
-          (data) => {
+          (data: Record<string, unknown>) => {
             set((s) => ({
               activeTrainingJob: s.activeTrainingJob
                 ? { ...s.activeTrainingJob, ...data }
                 : null,
             }));
           },
-          (status) => {
+          (status: string) => {
             set((s) => ({
               isTraining: false,
               activeTrainingJob: s.activeTrainingJob
@@ -253,7 +254,7 @@ export const useForgeStore = create<ForgeState>()(
             }));
             get().loadForgedModels();
           },
-          (error) => {
+          (error: string) => {
             set({ error, isTraining: false });
           }
         );

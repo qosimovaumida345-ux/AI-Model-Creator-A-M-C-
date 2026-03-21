@@ -14,7 +14,6 @@ interface ChatState {
   error: string | null;
   abortController: AbortController | null;
 
-  // Actions
   loadSessions: () => Promise<void>;
   createSession: (modelId: string, modelName: string, isForged?: boolean) => Promise<string>;
   setActiveSession: (id: string | null) => void;
@@ -44,13 +43,13 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     }
   },
 
-  createSession: async (modelId, modelName, isForged = false) => {
+  createSession: async (modelId: string, modelName: string, isForged = false) => {
     try {
       const session = await api.createSession({
         modelId,
         modelName,
         isForgedModel: isForged,
-        settings: DEFAULT_CHAT_SETTINGS,
+        settings: DEFAULT_CHAT_SETTINGS as unknown as Record<string, unknown>,
       });
       set((s) => ({
         sessions: [session, ...s.sessions],
@@ -59,7 +58,6 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       return session.id;
     } catch (err) {
       console.error('Failed to create session:', err);
-      // Create local-only session as fallback
       const localSession: ChatSession = {
         id: uuid(),
         modelId,
@@ -79,9 +77,9 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     }
   },
 
-  setActiveSession: (id) => set({ activeSessionId: id, error: null, streamingContent: '' }),
+  setActiveSession: (id: string | null) => set({ activeSessionId: id, error: null, streamingContent: '' }),
 
-  deleteSession: async (id) => {
+  deleteSession: async (id: string) => {
     try {
       await api.deleteSession(id);
     } catch {
@@ -102,7 +100,6 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     const provider = settingsStore.getEffectiveProvider();
     const apiKey = settingsStore.settings.inference.openRouterApiKey || undefined;
 
-    // Add user message to local state immediately
     const userMessage: ChatMessage = {
       id: uuid(),
       role: 'user',
@@ -117,9 +114,10 @@ export const useChatStore = create<ChatState>()((set, get) => ({
           ? {
               ...sess,
               messages: updatedMessages,
-              title: sess.messages.length === 0
-                ? content.slice(0, 80) + (content.length > 80 ? '...' : '')
-                : sess.title,
+              title:
+                sess.messages.length === 0
+                  ? content.slice(0, 80) + (content.length > 80 ? '...' : '')
+                  : sess.title,
               updatedAt: new Date().toISOString(),
             }
           : sess
@@ -129,7 +127,6 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       error: null,
     }));
 
-    // Build messages array for API (include system prompt)
     const apiMessages: Array<{ role: string; content: string }> = [];
     if (session.settings.systemPrompt) {
       apiMessages.push({ role: 'system', content: session.settings.systemPrompt });
@@ -159,12 +156,10 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         provider,
         apiKey: apiKey || undefined,
       },
-      // onChunk
       (chunk: string) => {
         fullContent += chunk;
         set({ streamingContent: fullContent });
       },
-      // onDone
       () => {
         const assistantMessage: ChatMessage = {
           id: uuid(),
@@ -190,7 +185,6 @@ export const useChatStore = create<ChatState>()((set, get) => ({
           abortController: null,
         }));
       },
-      // onError
       (error: string) => {
         const errMessage: ChatMessage = {
           id: uuid(),
@@ -227,7 +221,6 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       abortController.abort();
     }
 
-    // Save whatever was streamed so far
     if (streamingContent && activeSessionId) {
       const partialMessage: ChatMessage = {
         id: uuid(),
@@ -259,7 +252,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     return sessions.find((s) => s.id === activeSessionId);
   },
 
-  updateSessionSettings: (sessionId, settings) => {
+  updateSessionSettings: (sessionId: string, settings: Partial<ChatSettings>) => {
     set((s) => ({
       sessions: s.sessions.map((sess) =>
         sess.id === sessionId

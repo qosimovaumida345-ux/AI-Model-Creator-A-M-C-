@@ -120,7 +120,8 @@ export function getHardwareAssessment(device: DeviceInfo) {
   const hasMetal = device.gpu?.supportsMetal || false;
 
   let maxModelSize = '2B';
-  let speed: 'fast' | 'moderate' | 'slow' | 'unsupported' = 'slow';
+  let canRunLocally = true;
+  let speed: string = 'slow';
   const recommendedModels: string[] = [];
   const backends: string[] = ['cpu'];
 
@@ -153,10 +154,9 @@ export function getHardwareAssessment(device: DeviceInfo) {
   } else {
     maxModelSize = '1B';
     speed = 'slow';
+    canRunLocally = false;
     recommendedModels.push('llama-32-1b', 'tinyllama', 'smollm2');
   }
-
-  const canRunLocally = speed !== 'unsupported';
 
   const recommendation = !canRunLocally
     ? 'Your device may not support local inference. Use online mode instead.'
@@ -172,7 +172,7 @@ export function getHardwareAssessment(device: DeviceInfo) {
     canRunLocally,
     recommendedModels,
     maxModelSize,
-    inferenceSpeed: speed,
+    inferenceSpeed: speed as 'fast' | 'moderate' | 'slow' | 'unsupported',
     recommendation,
     availableBackends: backends as ('cpu' | 'cuda' | 'rocm' | 'metal' | 'vulkan' | 'webgpu')[],
   };
