@@ -1,1127 +1,1365 @@
-import { useState, useEffect, useCallback } from 'react';
-import type { AIModel, ForgedModel } from './lib/db';
+import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  getAllModels, saveModel,
-  getAllForgedModels, saveForgedModel, deleteForgedModel as dbDeleteForgedModel
-} from './lib/db';
-import { DEFAULT_MODELS } from './lib/models';
-import { detectDevice, getStorageEstimate } from './lib/device';
-import type { DeviceInfo } from './lib/device';
-import {
-  IconDashboard, IconModels, IconForge, IconDevice, IconDownload, IconCheck,
-  IconTrash, IconEdit, IconImage, IconMenu, IconWifi, IconWifiOff,
-  IconCpu, IconPlay, IconStop, IconSend, IconChevron
+  IconForge, IconBrain, IconCpu, IconDownload, IconPlay, IconStop,
+  IconTrash, IconEdit, IconChat, IconGrid, IconHammer, IconLayers,
+  IconMonitor, IconServer, IconCheck, IconX, IconSearch, IconSend,
+  IconMenu, IconArrowLeft, IconSettings, IconWifi, IconWifiOff, IconImage,
 } from './components/Icons';
+import ParticleCanvas from './components/ParticleCanvas';
+import {
+  type ForgedModel, type ChatMessage, type DeviceInfo,
+  type ModelCategory, type Quantization, type MergeStrategy,
+  MODEL_CATALOG, detectDevice, uid,
+  saveForgedModel, loadAllForgedModels, deleteForgedModel, generateResponse,
+} from './lib/store';
 
-type Page = 'dashboard' | 'models' | 'forge' | 'device' | 'chat';
+/* ─── Page type ─────────────────────────────────── */
+type Page = 'home' | 'gallery' | 'forge' | 'models' | 'runner' | 'system';
 
+/* ─── Motion variants ───────────────────────────── */
+const fadeUp = { initial: { opacity: 0, y: 30 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: -20 } };
+const stagger = { animate: { transition: { staggerChildren: 0.06 } } };
+const scaleIn = { initial: { opacity: 0, scale: 0.9 }, animate: { opacity: 1, scale: 1 }, exit: { opacity: 0, scale: 0.9 } };
+
+/* ═══════════════════════════════════════════════════
+   MAIN APP
+   ═══════════════════════════════════════════════════ */
 export default function App() {
-  const [page, setPage] = useState<Page>('dashboard');
-  const [models, setModels] = useState<AIModel[]>([]);
-  const [forgedModels, setForgedModels] = useState<ForgedModel[]>([]);
-  const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [page, setPage] = useState<Page>('home');
+  const [models, setModels] = useState<ForgedModel[]>([]);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [activeChat, setActiveChat] = useState<string | null>(null);
-  const [notification, setNotification] = useState<string | null>(null);
+  const [mobileNav, setMobileNav] = useState(false);
+  const [device] = useState<DeviceInfo>(() => detectDevice());
 
-  const showNotification = useCallback((msg: string) => {
-    setNotification(msg);
-    setTimeout(() => setNotification(null), 3000);
-  }, []);
-
-  // Initialize
+  // Load saved models
   useEffect(() => {
-    const init = async () => {
-      const stored = await getAllModels();
-      if (stored.length === 0) {
-        for (const m of DEFAULT_MODELS) {
-          await saveModel(m);
-        }
-        setModels(DEFAULT_MODELS);
-      } else {
-        setModels(stored);
-      }
-      const forged = await getAllForgedModels();
-      setForgedModels(forged);
-
-      const info = detectDevice();
-      const storage = await getStorageEstimate();
-      setDeviceInfo({ ...info, storageEstimate: storage });
-    };
-    init();
-
-    const onOnline = () => setIsOnline(true);
-    const onOffline = () => setIsOnline(false);
-    window.addEventListener('online', onOnline);
-    window.addEventListener('offline', onOffline);
-    return () => {
-      window.removeEventListener('online', onOnline);
-      window.removeEventListener('offline', onOffline);
-    };
+    loadAllForgedModels().then(setModels);
   }, []);
 
-  const refreshModels = async () => {
-    setModels(await getAllModels());
-    setForgedModels(await getAllForgedModels());
-  };
+  // Online status
+  useEffect(() => {
+    const on = () => setIsOnline(true);
+    const off = () => setIsOnline(false);
+    window.addEventListener('online', on);
+    window.addEventListener('offline', off);
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
+  }, []);
 
-  const downloadedModels = models.filter(m => m.downloaded);
-  const totalSize = downloadedModels.reduce((a, m) => a + m.sizeBytes, 0);
-  const forgedCount = forgedModels.filter(f => f.status === 'ready').length;
+  const addModel = useCallback(async (m: ForgedModel) => {
+    await saveForgedModel(m);
+    setModels(prev => [...prev, m]);
+  }, []);
 
-  return (
-    <div className="min-h-screen bg-surface-50 flex">
-      {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/60 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
+  const removeModel = useCallback(async (id: string) => {
+    await deleteForgedModel(id);
+    setModels(prev => prev.filter(m => m.id !== id));
+  }, []);
 
-      {/* Sidebar */}
-      <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-72 bg-surface-100 border-r border-white/5 flex flex-col transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
-        <div className="p-6 border-b border-white/5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 via-purple-500 to-cyan-500 flex items-center justify-center">
-              <svg viewBox="0 0 24 24" className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                <path d="M2 17l10 5 10-5" />
-                <path d="M2 12l10 5 10-5" />
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-white tracking-tight">NeuralForge</h1>
-              <p className="text-xs text-slate-500 font-mono">v2.0.0</p>
-            </div>
-          </div>
-        </div>
+  const updateModel = useCallback(async (updated: ForgedModel) => {
+    await saveForgedModel(updated);
+    setModels(prev => prev.map(m => m.id === updated.id ? updated : m));
+  }, []);
 
-        <nav className="flex-1 p-4 space-y-1">
-          {([
-            ['dashboard', 'Dashboard', IconDashboard],
-            ['models', 'Model Hub', IconModels],
-            ['forge', 'Model Forge', IconForge],
-            ['device', 'System Info', IconDevice],
-          ] as const).map(([key, label, Icon]) => (
-            <button
-              key={key}
-              onClick={() => { setPage(key); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${page === key ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
-            >
-              <Icon className="w-5 h-5" />
-              {label}
-              {key === 'models' && downloadedModels.length > 0 && (
-                <span className="ml-auto text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">{downloadedModels.length}</span>
-              )}
-              {key === 'forge' && forgedCount > 0 && (
-                <span className="ml-auto text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full">{forgedCount}</span>
-              )}
-            </button>
-          ))}
-        </nav>
-
-        <div className="p-4 border-t border-white/5">
-          <div className="glass rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              {isOnline ? <IconWifi className="w-4 h-4 text-green-400" /> : <IconWifiOff className="w-4 h-4 text-red-400" />}
-              <span className="text-xs font-medium text-slate-400">{isOnline ? 'Online' : 'Offline Mode'}</span>
-            </div>
-            <div className="text-xs text-slate-500">
-              <p>{downloadedModels.length} models ready</p>
-              <p>{(totalSize / (1024 * 1024 * 1024)).toFixed(1)} GB used</p>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      {/* Main */}
-      <main className="flex-1 min-h-screen flex flex-col">
-        {/* Top bar */}
-        <header className="sticky top-0 z-30 glass border-b border-white/5 px-4 lg:px-8 py-4 flex items-center gap-4">
-          <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-slate-400 hover:text-white">
-            <IconMenu className="w-6 h-6" />
-          </button>
-          <h2 className="text-lg font-semibold text-white capitalize">{page === 'chat' ? 'AI Chat' : page === 'forge' ? 'Model Forge' : page === 'device' ? 'System Information' : page === 'models' ? 'Model Hub' : 'Dashboard'}</h2>
-          <div className="ml-auto flex items-center gap-3">
-            <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-400' : 'bg-red-400'}`} />
-            <span className="text-xs text-slate-500 hidden sm:block">{isOnline ? 'Connected' : 'Offline'}</span>
-          </div>
-        </header>
-
-        <div className="flex-1 overflow-auto">
-          {page === 'dashboard' && (
-            <DashboardPage
-              models={models}
-              forgedModels={forgedModels}
-              deviceInfo={deviceInfo}
-              isOnline={isOnline}
-              onNavigate={setPage}
-              onStartChat={(id) => { setActiveChat(id); setPage('chat'); }}
-            />
-          )}
-          {page === 'models' && (
-            <ModelsPage
-              models={models}
-              onRefresh={refreshModels}
-              onNotify={showNotification}
-              onStartChat={(id) => { setActiveChat(id); setPage('chat'); }}
-            />
-          )}
-          {page === 'forge' && (
-            <ForgePage
-              models={models}
-              forgedModels={forgedModels}
-              onRefresh={refreshModels}
-              onNotify={showNotification}
-            />
-          )}
-          {page === 'device' && <DevicePage deviceInfo={deviceInfo} />}
-          {page === 'chat' && (
-            <ChatPage
-              models={models}
-              forgedModels={forgedModels}
-              activeModelId={activeChat}
-              onSelectModel={setActiveChat}
-            />
-          )}
-        </div>
-      </main>
-
-      {/* Notification */}
-      {notification && (
-        <div className="fixed bottom-6 right-6 z-50 glass rounded-xl px-6 py-3 text-sm font-medium text-white border border-blue-500/30 animate-fade-up">
-          {notification}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ========== DASHBOARD ========== */
-function DashboardPage({ models, forgedModels, deviceInfo, isOnline, onNavigate, onStartChat }: {
-  models: AIModel[];
-  forgedModels: ForgedModel[];
-  deviceInfo: DeviceInfo | null;
-  isOnline: boolean;
-  onNavigate: (p: Page) => void;
-  onStartChat: (id: string) => void;
-}) {
-  const downloaded = models.filter(m => m.downloaded);
-  const totalSize = downloaded.reduce((a, m) => a + m.sizeBytes, 0);
-  const readyForged = forgedModels.filter(f => f.status === 'ready');
-
-  return (
-    <div className="hero-gradient min-h-full">
-      <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-8">
-        {/* Hero */}
-        <div className="relative overflow-hidden rounded-2xl border border-white/5 bg-gradient-to-br from-surface-200 via-surface-100 to-surface-200 p-8 lg:p-12">
-          <div className="absolute inset-0 opacity-20">
-            <div className="absolute top-10 right-10 w-64 h-64 rounded-full bg-blue-500/20 blur-3xl" />
-            <div className="absolute bottom-10 left-10 w-48 h-48 rounded-full bg-purple-500/20 blur-3xl" />
-          </div>
-          <div className="relative">
-            <h1 className="text-3xl lg:text-4xl font-bold text-white mb-3">
-              AI Model Forge
-            </h1>
-            <p className="text-slate-400 text-lg max-w-2xl mb-6">
-              Download, manage, and merge state-of-the-art AI models. Run inference locally with full offline support. Forge multiple models into one custom powerhouse.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <button onClick={() => onNavigate('models')} className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-medium text-sm transition-colors">
-                Browse Models
-              </button>
-              <button onClick={() => onNavigate('forge')} className="px-6 py-3 bg-surface-400 hover:bg-surface-500 text-white rounded-xl font-medium text-sm transition-colors border border-white/10">
-                Open Forge
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { label: 'Available Models', value: models.length.toString(), color: 'text-blue-400' },
-            { label: 'Downloaded', value: downloaded.length.toString(), color: 'text-green-400' },
-            { label: 'Forged Models', value: readyForged.length.toString(), color: 'text-purple-400' },
-            { label: 'Storage Used', value: `${(totalSize / (1024 * 1024 * 1024)).toFixed(1)} GB`, color: 'text-cyan-400' },
-          ].map((s, i) => (
-            <div key={i} className="glass rounded-xl p-5 glass-hover transition-all cursor-default">
-              <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">{s.label}</p>
-              <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Downloaded Models */}
-        {downloaded.length > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">Ready to Use</h3>
-              <button onClick={() => onNavigate('models')} className="text-sm text-blue-400 hover:text-blue-300 flex items-center gap-1">
-                View all <IconChevron className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {downloaded.map(m => (
-                <div key={m.id} className="glass rounded-xl p-5 glass-hover transition-all group">
-                  <div className="flex items-start gap-4 mb-4">
-                    <img src={m.customIcon || m.logoUrl} alt={m.name} className="model-logo" onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 56"><rect width="56" height="56" rx="14" fill="#1c2340"/><text x="28" y="35" text-anchor="middle" fill="#3b82f6" font-size="20" font-family="sans-serif">AI</text></svg>'); }} />
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-white truncate">{m.name}</h4>
-                      <p className="text-xs text-slate-500">{m.provider} -- {m.parameters} params</p>
-                    </div>
-                  </div>
-                  <button onClick={() => onStartChat(m.id)} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-green-500/10 hover:bg-green-500/20 text-green-400 rounded-lg text-sm font-medium transition-colors border border-green-500/20">
-                    <IconPlay className="w-4 h-4" /> Run Model
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Forged Models */}
-        {readyForged.length > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">Forged Models</h3>
-              <button onClick={() => onNavigate('forge')} className="text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1">
-                Open Forge <IconChevron className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {readyForged.map(f => (
-                <div key={f.id} className="glass rounded-xl p-5 gradient-border glass-hover transition-all">
-                  <div className="flex items-start gap-4 mb-3">
-                    {f.customIcon ? (
-                      <img src={f.customIcon} alt={f.name} className="model-logo" />
-                    ) : (
-                      <div className="w-14 h-14 rounded-[14px] bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center border-2 border-purple-500/20">
-                        <IconForge className="w-7 h-7 text-white" />
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-white truncate">{f.name}</h4>
-                      <p className="text-xs text-slate-500">{f.sourceModelNames.join(' + ')}</p>
-                      <p className="text-xs text-purple-400 mt-1">Forged Model -- {f.size}</p>
-                    </div>
-                  </div>
-                  <button onClick={() => {}} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 rounded-lg text-sm font-medium transition-colors border border-purple-500/20">
-                    <IconPlay className="w-4 h-4" /> Run Forged Model
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* System overview */}
-        {deviceInfo && (
-          <div className="glass rounded-xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">System Overview</h3>
-              <button onClick={() => onNavigate('device')} className="text-sm text-blue-400 hover:text-blue-300 flex items-center gap-1">
-                Details <IconChevron className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-              <div>
-                <p className="text-slate-500 text-xs mb-1">Device</p>
-                <p className="text-white font-medium capitalize">{deviceInfo.type}</p>
-              </div>
-              <div>
-                <p className="text-slate-500 text-xs mb-1">OS</p>
-                <p className="text-white font-medium">{deviceInfo.os}</p>
-              </div>
-              <div>
-                <p className="text-slate-500 text-xs mb-1">CPU Cores</p>
-                <p className="text-white font-medium">{deviceInfo.cores}</p>
-              </div>
-              <div>
-                <p className="text-slate-500 text-xs mb-1">Status</p>
-                <p className={`font-medium ${isOnline ? 'text-green-400' : 'text-orange-400'}`}>
-                  {isOnline ? 'Online' : 'Offline Ready'}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ========== MODELS PAGE ========== */
-function ModelsPage({ models, onRefresh, onNotify, onStartChat }: {
-  models: AIModel[];
-  onRefresh: () => void;
-  onNotify: (m: string) => void;
-  onStartChat: (id: string) => void;
-}) {
-  const [downloading, setDownloading] = useState<Record<string, boolean>>({});
-  const [renaming, setRenaming] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState('');
-  const [expandedModel, setExpandedModel] = useState<string | null>(null);
-
-  const handleDownload = async (model: AIModel) => {
-    setDownloading(d => ({ ...d, [model.id]: true }));
-    // Simulate download progress
-    let progress = 0;
-    const interval = setInterval(async () => {
-      progress += Math.random() * 8 + 2;
-      if (progress >= 100) {
-        progress = 100;
-        clearInterval(interval);
-        await saveModel({ ...model, downloaded: true, downloadProgress: 100, downloadedAt: Date.now() });
-        setDownloading(d => ({ ...d, [model.id]: false }));
-        onRefresh();
-        onNotify(`${model.name} downloaded successfully`);
-      } else {
-        await saveModel({ ...model, downloadProgress: Math.min(progress, 99) });
-        onRefresh();
-      }
-    }, 200);
-  };
-
-  const handleDelete = async (model: AIModel) => {
-    await saveModel({ ...model, downloaded: false, downloadProgress: 0, downloadedAt: undefined });
-    onRefresh();
-    onNotify(`${model.name} removed`);
-  };
-
-  const handleRename = async (model: AIModel) => {
-    if (renameValue.trim()) {
-      await saveModel({ ...model, name: renameValue.trim() });
-      onRefresh();
-      onNotify(`Model renamed to ${renameValue.trim()}`);
-    }
-    setRenaming(null);
-  };
-
-  const handleIconChange = async (model: AIModel, file: File) => {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const dataUrl = e.target?.result as string;
-      await saveModel({ ...model, customIcon: dataUrl });
-      onRefresh();
-      onNotify('Model icon updated');
-    };
-    reader.readAsDataURL(file);
-  };
-
-  return (
-    <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8">
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-white mb-2">Available AI Models</h2>
-        <p className="text-slate-400">Download and manage state-of-the-art AI models for local inference</p>
-      </div>
-
-      <div className="space-y-4">
-        {models.map((model, idx) => (
-          <div
-            key={model.id}
-            className="glass rounded-2xl overflow-hidden glass-hover transition-all animate-fade-up"
-            style={{ animationDelay: `${idx * 100}ms` }}
-          >
-            <div className="p-6">
-              <div className="flex items-start gap-5">
-                {/* Logo + icon change */}
-                <div className="relative group flex-shrink-0">
-                  <img
-                    src={model.customIcon || model.logoUrl}
-                    alt={model.name}
-                    className="w-16 h-16 rounded-2xl object-cover border-2 border-white/10 group-hover:border-blue-500/40 transition-colors"
-                    onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#1c2340"/><text x="32" y="40" text-anchor="middle" fill="#3b82f6" font-size="22" font-family="sans-serif">AI</text></svg>'); }}
-                  />
-                  <label className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                    <IconImage className="w-5 h-5 text-white" />
-                    <input type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && handleIconChange(model, e.target.files[0])} />
-                  </label>
-                </div>
-
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-4 mb-2">
-                    <div>
-                      {renaming === model.id ? (
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={renameValue}
-                            onChange={e => setRenameValue(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && handleRename(model)}
-                            className="bg-surface-300 text-white px-3 py-1.5 rounded-lg text-sm border border-blue-500/30 outline-none focus:border-blue-500"
-                            autoFocus
-                          />
-                          <button onClick={() => handleRename(model)} className="text-blue-400 hover:text-blue-300 text-sm font-medium">Save</button>
-                          <button onClick={() => setRenaming(null)} className="text-slate-500 hover:text-slate-400 text-sm">Cancel</button>
-                        </div>
-                      ) : (
-                        <h3 className="text-xl font-bold text-white">{model.name}</h3>
-                      )}
-                      <div className="flex items-center gap-3 mt-1">
-                        <span className="text-xs font-medium text-slate-400">{model.provider}</span>
-                        <span className="text-xs text-slate-600">|</span>
-                        <span className="text-xs font-mono text-blue-400">{model.parameters} params</span>
-                        <span className="text-xs text-slate-600">|</span>
-                        <span className="text-xs font-mono text-slate-500">{model.size}</span>
-                        <span className="text-xs text-slate-600">|</span>
-                        <span className="text-xs text-slate-500">v{model.version}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <button onClick={() => { setRenaming(model.id); setRenameValue(model.name); }} className="p-2 text-slate-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all" title="Rename">
-                        <IconEdit className="w-4 h-4" />
-                      </button>
-                      {model.downloaded && (
-                        <>
-                          <button onClick={() => onStartChat(model.id)} className="p-2 text-green-500 hover:text-green-400 hover:bg-green-500/10 rounded-lg transition-all" title="Run">
-                            <IconPlay className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => handleDelete(model)} className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all" title="Remove">
-                            <IconTrash className="w-4 h-4" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  <p className="text-sm text-slate-400 mb-3 line-clamp-2">{model.description}</p>
-
-                  {/* Capabilities */}
-                  <div className="flex flex-wrap gap-1.5 mb-4">
-                    {model.capabilities.slice(0, expandedModel === model.id ? undefined : 4).map(cap => (
-                      <span key={cap} className="px-2.5 py-1 text-xs font-medium bg-surface-300 text-slate-300 rounded-lg border border-white/5">{cap}</span>
-                    ))}
-                    {model.capabilities.length > 4 && expandedModel !== model.id && (
-                      <button onClick={() => setExpandedModel(model.id)} className="px-2.5 py-1 text-xs font-medium text-blue-400 hover:text-blue-300 border border-blue-500/20 rounded-lg">+{model.capabilities.length - 4} more</button>
-                    )}
-                  </div>
-
-                  {/* Download / Status */}
-                  {!model.downloaded && !downloading[model.id] && model.downloadProgress === 0 && (
-                    <button onClick={() => handleDownload(model)} className="flex items-center gap-2 px-5 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-medium transition-colors">
-                      <IconDownload className="w-4 h-4" /> Download ({model.size})
-                    </button>
-                  )}
-
-                  {(downloading[model.id] || (model.downloadProgress > 0 && model.downloadProgress < 100)) && (
-                    <div>
-                      <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-                        <span>Downloading...</span>
-                        <span>{Math.round(model.downloadProgress)}%</span>
-                      </div>
-                      <div className="h-2 bg-surface-300 rounded-full overflow-hidden">
-                        <div className="h-full progress-animated rounded-full transition-all duration-200" style={{ width: `${model.downloadProgress}%` }} />
-                      </div>
-                    </div>
-                  )}
-
-                  {model.downloaded && (
-                    <div className="flex items-center gap-2 text-sm text-green-400">
-                      <IconCheck className="w-4 h-4" />
-                      <span className="font-medium">Downloaded</span>
-                      {model.downloadedAt && (
-                        <span className="text-xs text-slate-500 ml-2">
-                          {new Date(model.downloadedAt).toLocaleDateString()}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Expanded details */}
-              {expandedModel === model.id && (
-                <div className="mt-5 pt-5 border-t border-white/5 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <p className="text-slate-500 text-xs mb-1">Architecture</p>
-                    <p className="text-white font-mono text-xs">{model.architecture}</p>
-                  </div>
-                  <div>
-                    <p className="text-slate-500 text-xs mb-1">Quantization</p>
-                    <p className="text-white font-mono text-xs">{model.quantization}</p>
-                  </div>
-                  <div>
-                    <p className="text-slate-500 text-xs mb-1">Context Window</p>
-                    <p className="text-white font-mono text-xs">{model.contextWindow} tokens</p>
-                  </div>
-                  <div>
-                    <p className="text-slate-500 text-xs mb-1">Parameters</p>
-                    <p className="text-white font-mono text-xs">{model.parameters}</p>
-                  </div>
-                  <button onClick={() => setExpandedModel(null)} className="col-span-full text-xs text-slate-500 hover:text-slate-400 text-center pt-2">
-                    Collapse details
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ========== FORGE PAGE ========== */
-function ForgePage({ models, forgedModels, onRefresh, onNotify }: {
-  models: AIModel[];
-  forgedModels: ForgedModel[];
-  onRefresh: () => void;
-  onNotify: (m: string) => void;
-}) {
-  const [selectedModels, setSelectedModels] = useState<string[]>([]);
-  const [forgeName, setForgeName] = useState('');
-  const [mergeStrategy, setMergeStrategy] = useState('weighted_average');
-  const [quantization, setQuantization] = useState('Q4_K_M');
-  const [forging, setForging] = useState(false);
-  const [forgeProgress, setForgeProgress] = useState(0);
-  const [editingForged, setEditingForged] = useState<string | null>(null);
-  const [editName, setEditName] = useState('');
-
-  const downloaded = models.filter(m => m.downloaded);
-
-  const toggleModel = (id: string) => {
-    setSelectedModels(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  };
-
-  const startForge = async () => {
-    if (selectedModels.length < 2) {
-      onNotify('Select at least 2 models to forge');
-      return;
-    }
-    if (!forgeName.trim()) {
-      onNotify('Enter a name for your forged model');
-      return;
-    }
-
-    setForging(true);
-    setForgeProgress(0);
-
-    const sourceNames = selectedModels.map(id => models.find(m => m.id === id)?.name || id);
-    const totalSize = selectedModels.reduce((a, id) => {
-      const m = models.find(x => x.id === id);
-      return a + (m?.sizeBytes || 0);
-    }, 0);
-
-    const forgedModel: ForgedModel = {
-      id: `forged-${Date.now()}`,
-      name: forgeName.trim(),
-      description: `Forged from ${sourceNames.join(', ')} using ${mergeStrategy} strategy`,
-      sourceModels: selectedModels,
-      sourceModelNames: sourceNames,
-      createdAt: Date.now(),
-      size: `${(totalSize / (1024 * 1024 * 1024)).toFixed(1)} GB`,
-      sizeBytes: totalSize,
-      status: 'forging',
-      forgeProgress: 0,
-      config: {
-        mergeStrategy,
-        weightDistribution: Object.fromEntries(selectedModels.map(id => [id, 1 / selectedModels.length])),
-        quantization,
-        contextWindow: '128K',
-      },
-    };
-
-    await saveForgedModel(forgedModel);
-    onRefresh();
-
-    // Simulate forging
-    let progress = 0;
-    const interval = setInterval(async () => {
-      progress += Math.random() * 5 + 1;
-      if (progress >= 100) {
-        progress = 100;
-        clearInterval(interval);
-        await saveForgedModel({ ...forgedModel, status: 'ready', forgeProgress: 100 });
-        setForging(false);
-        setForgeProgress(0);
-        setSelectedModels([]);
-        setForgeName('');
-        onRefresh();
-        onNotify(`${forgeName} forged successfully!`);
-      } else {
-        setForgeProgress(progress);
-        await saveForgedModel({ ...forgedModel, forgeProgress: progress });
-      }
-    }, 300);
-  };
-
-  const handleDeleteForged = async (id: string) => {
-    await dbDeleteForgedModel(id);
-    onRefresh();
-    onNotify('Forged model deleted');
-  };
-
-  const handleRenameForged = async (model: ForgedModel) => {
-    if (editName.trim()) {
-      await saveForgedModel({ ...model, name: editName.trim() });
-      onRefresh();
-      onNotify(`Renamed to ${editName.trim()}`);
-    }
-    setEditingForged(null);
-  };
-
-  const handleForgedIcon = async (model: ForgedModel, file: File) => {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      await saveForgedModel({ ...model, customIcon: e.target?.result as string });
-      onRefresh();
-      onNotify('Forged model icon updated');
-    };
-    reader.readAsDataURL(file);
-  };
-
-  return (
-    <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-8">
-      {/* Forge Interface */}
-      <div className="glass rounded-2xl p-6 lg:p-8">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center">
-            <IconForge className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-white">Create Forged Model</h2>
-            <p className="text-sm text-slate-400">Merge multiple models into a single custom model</p>
-          </div>
-        </div>
-
-        {downloaded.length < 2 ? (
-          <div className="text-center py-12 text-slate-500">
-            <IconModels className="w-12 h-12 mx-auto mb-3 opacity-40" />
-            <p className="font-medium">Download at least 2 models to start forging</p>
-            <p className="text-sm mt-1">Go to Model Hub to download models</p>
-          </div>
-        ) : (
-          <>
-            {/* Select Models */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-slate-300 mb-3">Select Models to Forge</label>
-              <div className="grid sm:grid-cols-2 gap-3">
-                {downloaded.map(model => {
-                  const selected = selectedModels.includes(model.id);
-                  return (
-                    <button
-                      key={model.id}
-                      onClick={() => toggleModel(model.id)}
-                      className={`flex items-center gap-3 p-4 rounded-xl border transition-all text-left ${
-                        selected
-                          ? 'bg-purple-500/10 border-purple-500/40 text-white'
-                          : 'bg-surface-200 border-white/5 text-slate-400 hover:border-white/20'
-                      }`}
-                    >
-                      <img src={model.customIcon || model.logoUrl} alt="" className="w-10 h-10 rounded-xl object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{model.name}</p>
-                        <p className="text-xs text-slate-500">{model.parameters} params -- {model.size}</p>
-                      </div>
-                      <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${selected ? 'bg-purple-500 border-purple-500' : 'border-slate-600'}`}>
-                        {selected && <IconCheck className="w-3 h-3 text-white" />}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Config */}
-            <div className="grid sm:grid-cols-2 gap-4 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Model Name</label>
-                <input
-                  type="text"
-                  value={forgeName}
-                  onChange={e => setForgeName(e.target.value)}
-                  placeholder="e.g. HyperMind-7B"
-                  className="w-full bg-surface-200 text-white px-4 py-3 rounded-xl border border-white/10 outline-none focus:border-purple-500/50 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Merge Strategy</label>
-                <select
-                  value={mergeStrategy}
-                  onChange={e => setMergeStrategy(e.target.value)}
-                  className="w-full bg-surface-200 text-white px-4 py-3 rounded-xl border border-white/10 outline-none focus:border-purple-500/50 text-sm"
-                >
-                  <option value="weighted_average">Weighted Average (SLERP)</option>
-                  <option value="ties_merging">TIES Merging</option>
-                  <option value="dare_ties">DARE-TIES</option>
-                  <option value="linear">Linear Interpolation</option>
-                  <option value="passthrough">Passthrough (Stack)</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Quantization</label>
-                <select
-                  value={quantization}
-                  onChange={e => setQuantization(e.target.value)}
-                  className="w-full bg-surface-200 text-white px-4 py-3 rounded-xl border border-white/10 outline-none focus:border-purple-500/50 text-sm"
-                >
-                  <option value="Q4_K_M">Q4_K_M (Recommended)</option>
-                  <option value="Q5_K_M">Q5_K_M (Better Quality)</option>
-                  <option value="Q8_0">Q8_0 (High Quality)</option>
-                  <option value="F16">F16 (Full Precision)</option>
-                </select>
-              </div>
-              <div className="flex items-end">
-                <button
-                  onClick={startForge}
-                  disabled={forging || selectedModels.length < 2}
-                  className={`w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all ${
-                    forging || selectedModels.length < 2
-                      ? 'bg-surface-400 text-slate-600 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-purple-500 to-cyan-500 text-white hover:from-purple-600 hover:to-cyan-600 forge-glow'
-                  }`}
-                >
-                  <IconForge className="w-5 h-5" />
-                  {forging ? 'Forging...' : `Forge ${selectedModels.length} Models`}
-                </button>
-              </div>
-            </div>
-
-            {/* Forge Progress */}
-            {forging && (
-              <div className="bg-surface-200 rounded-xl p-5 border border-purple-500/20">
-                <div className="flex items-center justify-between text-sm mb-3">
-                  <span className="text-purple-400 font-medium">Forging in progress...</span>
-                  <span className="text-slate-400 font-mono">{Math.round(forgeProgress)}%</span>
-                </div>
-                <div className="h-3 bg-surface-400 rounded-full overflow-hidden">
-                  <div className="h-full progress-animated rounded-full transition-all duration-300" style={{ width: `${forgeProgress}%` }} />
-                </div>
-                <div className="mt-3 text-xs text-slate-500 space-y-1">
-                  <p>{forgeProgress < 20 ? 'Loading model weights...' : forgeProgress < 50 ? 'Merging attention layers...' : forgeProgress < 75 ? 'Applying merge strategy...' : forgeProgress < 95 ? 'Quantizing output...' : 'Finalizing...'}</p>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Forged Models List */}
-      {forgedModels.length > 0 && (
-        <div>
-          <h3 className="text-lg font-semibold text-white mb-4">Your Forged Models</h3>
-          <div className="space-y-4">
-            {forgedModels.map(fm => (
-              <div key={fm.id} className="glass rounded-2xl p-6 glass-hover transition-all">
-                <div className="flex items-start gap-4">
-                  <div className="relative group flex-shrink-0">
-                    {fm.customIcon ? (
-                      <img src={fm.customIcon} alt={fm.name} className="w-14 h-14 rounded-2xl object-cover border-2 border-purple-500/20" />
-                    ) : (
-                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center border-2 border-purple-500/20">
-                        <IconForge className="w-6 h-6 text-white" />
-                      </div>
-                    )}
-                    <label className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                      <IconImage className="w-4 h-4 text-white" />
-                      <input type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && handleForgedIcon(fm, e.target.files[0])} />
-                    </label>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    {editingForged === fm.id ? (
-                      <div className="flex items-center gap-2 mb-2">
-                        <input
-                          type="text"
-                          value={editName}
-                          onChange={e => setEditName(e.target.value)}
-                          onKeyDown={e => e.key === 'Enter' && handleRenameForged(fm)}
-                          className="bg-surface-300 text-white px-3 py-1.5 rounded-lg text-sm border border-purple-500/30 outline-none"
-                          autoFocus
-                        />
-                        <button onClick={() => handleRenameForged(fm)} className="text-purple-400 text-sm font-medium">Save</button>
-                        <button onClick={() => setEditingForged(null)} className="text-slate-500 text-sm">Cancel</button>
-                      </div>
-                    ) : (
-                      <h4 className="text-lg font-bold text-white">{fm.name}</h4>
-                    )}
-                    <p className="text-xs text-slate-500 mt-1">Sources: {fm.sourceModelNames.join(' + ')}</p>
-                    <p className="text-xs text-slate-500">Strategy: {fm.config.mergeStrategy} -- Quantization: {fm.config.quantization}</p>
-                    <div className="flex items-center gap-3 mt-3">
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-lg ${fm.status === 'ready' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : fm.status === 'forging' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
-                        {fm.status === 'ready' ? 'Ready' : fm.status === 'forging' ? 'Forging...' : 'Error'}
-                      </span>
-                      <span className="text-xs text-slate-500">{fm.size}</span>
-                      <span className="text-xs text-slate-500">{new Date(fm.createdAt).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button onClick={() => { setEditingForged(fm.id); setEditName(fm.name); }} className="p-2 text-slate-500 hover:text-purple-400 hover:bg-purple-500/10 rounded-lg transition-all">
-                      <IconEdit className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => handleDeleteForged(fm.id)} className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all">
-                      <IconTrash className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ========== DEVICE PAGE ========== */
-function DevicePage({ deviceInfo }: { deviceInfo: DeviceInfo | null }) {
-  if (!deviceInfo) return <div className="p-8 text-slate-500">Detecting device...</div>;
-
-  const sections = [
-    {
-      title: 'Device',
-      items: [
-        { label: 'Type', value: deviceInfo.type, color: 'text-blue-400' },
-        { label: 'Operating System', value: deviceInfo.os, color: 'text-white' },
-        { label: 'Browser', value: deviceInfo.browser, color: 'text-white' },
-        { label: 'Screen Resolution', value: deviceInfo.screenRes, color: 'text-white' },
-        { label: 'Touch Support', value: deviceInfo.touchSupport ? 'Yes' : 'No', color: deviceInfo.touchSupport ? 'text-green-400' : 'text-slate-500' },
-      ]
-    },
-    {
-      title: 'Hardware',
-      items: [
-        { label: 'CPU Cores', value: `${deviceInfo.cores} cores`, color: 'text-cyan-400' },
-        { label: 'System Memory', value: deviceInfo.memory ? `${deviceInfo.memory} GB` : 'Not reported', color: 'text-cyan-400' },
-        { label: 'GPU', value: deviceInfo.gpu, color: 'text-white' },
-        { label: 'Storage', value: deviceInfo.storageEstimate, color: 'text-white' },
-      ]
-    },
-    {
-      title: 'Runtime Environment',
-      items: [
-        { label: 'Electron.js', value: deviceInfo.isElectron ? 'Detected' : 'Not detected', color: deviceInfo.isElectron ? 'text-green-400' : 'text-slate-500' },
-        { label: 'Capacitor', value: deviceInfo.isCapacitor ? 'Detected' : 'Not detected', color: deviceInfo.isCapacitor ? 'text-green-400' : 'text-slate-500' },
-        { label: 'PWA Mode', value: deviceInfo.isPWA ? 'Active' : 'Browser', color: deviceInfo.isPWA ? 'text-green-400' : 'text-slate-500' },
-        { label: 'Network', value: deviceInfo.isOnline ? 'Online' : 'Offline', color: deviceInfo.isOnline ? 'text-green-400' : 'text-orange-400' },
-      ]
-    },
+  const navItems: { id: Page; label: string; icon: ReactNode }[] = [
+    { id: 'home', label: 'Home', icon: <IconBrain size={20} /> },
+    { id: 'gallery', label: 'Model Hub', icon: <IconGrid size={20} /> },
+    { id: 'forge', label: 'Forge Studio', icon: <IconHammer size={20} /> },
+    { id: 'models', label: 'My Models', icon: <IconLayers size={20} /> },
+    { id: 'runner', label: 'AI Chat', icon: <IconChat size={20} /> },
+    { id: 'system', label: 'System', icon: <IconMonitor size={20} /> },
   ];
 
-  // Compute compatibility score
-  const score = Math.min(100, Math.round(
-    (deviceInfo.cores >= 4 ? 25 : deviceInfo.cores >= 2 ? 15 : 5) +
-    (deviceInfo.memory >= 8 ? 25 : deviceInfo.memory >= 4 ? 15 : deviceInfo.memory > 0 ? 8 : 10) +
-    (deviceInfo.gpu !== 'Unknown' && deviceInfo.gpu !== 'Not available' ? 25 : 10) +
-    (deviceInfo.type === 'desktop' ? 25 : deviceInfo.type === 'tablet' ? 15 : 10)
-  ));
-
   return (
-    <div className="max-w-5xl mx-auto px-4 lg:px-8 py-8 space-y-6">
-      <div className="flex items-center gap-3 mb-2">
-        <IconCpu className="w-6 h-6 text-cyan-400" />
-        <h2 className="text-2xl font-bold text-white">System Information</h2>
-      </div>
+    <div className="min-h-screen bg-void text-text-primary font-sans relative">
+      <ParticleCanvas />
 
-      {/* Compatibility Score */}
-      <div className="glass rounded-2xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-lg font-semibold text-white">AI Inference Compatibility</h3>
-            <p className="text-sm text-slate-400">Based on detected hardware capabilities</p>
+      {/* ── Top Navigation Bar ── */}
+      <nav className="fixed top-0 left-0 right-0 z-50 glass-strong">
+        <div className="max-w-[1440px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+          <button onClick={() => setPage('home')} className="flex items-center gap-3 group">
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30 group-hover:shadow-indigo-500/50 transition-shadow">
+              <IconForge size={20} className="text-white" />
+            </div>
+            <span className="text-lg font-bold tracking-tight hidden sm:block">
+              <span className="text-gradient">Neural</span>
+              <span className="text-text-bright">Forge</span>
+            </span>
+          </button>
+
+          {/* Desktop nav */}
+          <div className="hidden md:flex items-center gap-1">
+            {navItems.map(item => (
+              <button
+                key={item.id}
+                onClick={() => setPage(item.id)}
+                className={`px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all duration-200 ${
+                  page === item.id
+                    ? 'bg-white/10 text-white shadow-inner'
+                    : 'text-text-muted hover:text-white hover:bg-white/5'
+                }`}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            ))}
           </div>
-          <div className={`text-4xl font-bold ${score >= 70 ? 'text-green-400' : score >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>
-            {score}%
+
+          <div className="flex items-center gap-3">
+            {/* Online indicator */}
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${isOnline ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
+              {isOnline ? <IconWifi size={14} /> : <IconWifiOff size={14} />}
+              <span className="hidden sm:inline">{isOnline ? 'Online' : 'Offline'}</span>
+            </div>
+            {/* Mobile menu */}
+            <button onClick={() => setMobileNav(!mobileNav)} className="md:hidden p-2 rounded-lg hover:bg-white/10 transition-colors">
+              {mobileNav ? <IconX size={22} className="text-white" /> : <IconMenu size={22} className="text-text-muted" />}
+            </button>
           </div>
         </div>
-        <div className="h-3 bg-surface-300 rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-1000 ${score >= 70 ? 'bg-green-500' : score >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`}
-            style={{ width: `${score}%` }}
+
+        {/* Mobile drawer */}
+        <AnimatePresence>
+          {mobileNav && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="md:hidden overflow-hidden border-t border-white/5"
+            >
+              <div className="p-4 flex flex-col gap-1">
+                {navItems.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => { setPage(item.id); setMobileNav(false); }}
+                    className={`px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-3 transition-all ${
+                      page === item.id ? 'bg-indigo-500/20 text-white' : 'text-text-muted hover:bg-white/5'
+                    }`}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </nav>
+
+      {/* ── Main Content ── */}
+      <main className="relative z-10 pt-16 min-h-screen">
+        <AnimatePresence mode="wait">
+          {page === 'home' && <HomePage key="home" setPage={setPage} modelCount={models.length} />}
+          {page === 'gallery' && <GalleryPage key="gallery" />}
+          {page === 'forge' && <ForgePage key="forge" onForge={addModel} setPage={setPage} />}
+          {page === 'models' && <MyModelsPage key="models" models={models} onDelete={removeModel} onUpdate={updateModel} setPage={setPage} />}
+          {page === 'runner' && <RunnerPage key="runner" models={models} />}
+          {page === 'system' && <SystemPage key="system" device={device} isOnline={isOnline} />}
+        </AnimatePresence>
+      </main>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
+   HOME PAGE
+   ═══════════════════════════════════════════════════ */
+function HomePage({ setPage, modelCount }: { setPage: (p: Page) => void; modelCount: number }) {
+  return (
+    <motion.div {...fadeUp} transition={{ duration: 0.5 }}>
+      {/* Hero */}
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-indigo-900/10 via-purple-900/5 to-transparent" />
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-20 sm:py-32 relative">
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+            className="text-center"
+          >
+            {/* Orbiting rings */}
+            <div className="relative w-32 h-32 sm:w-40 sm:h-40 mx-auto mb-8">
+              <div className="absolute inset-0 rounded-full border border-indigo-500/30 animate-rotate-slow" />
+              <div className="absolute inset-3 rounded-full border border-purple-500/20 animate-rotate-slow" style={{ animationDirection: 'reverse', animationDuration: '15s' }} />
+              <div className="absolute inset-6 rounded-full border border-cyan-500/15 animate-rotate-slow" style={{ animationDuration: '25s' }} />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-2xl shadow-indigo-500/40 animate-pulse-glow">
+                  <IconForge size={36} className="text-white" />
+                </div>
+              </div>
+              {/* Floating dots */}
+              <div className="absolute top-0 left-1/2 w-2 h-2 rounded-full bg-indigo-400 animate-float" style={{ animationDelay: '0s' }} />
+              <div className="absolute bottom-2 right-0 w-1.5 h-1.5 rounded-full bg-purple-400 animate-float" style={{ animationDelay: '1s' }} />
+              <div className="absolute top-1/2 left-0 w-1.5 h-1.5 rounded-full bg-cyan-400 animate-float" style={{ animationDelay: '2s' }} />
+            </div>
+
+            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight mb-6">
+              <span className="text-gradient">Neural</span>
+              <span className="text-text-bright">Forge</span>
+            </h1>
+            <p className="text-lg sm:text-xl text-text-muted max-w-2xl mx-auto mb-4 leading-relaxed">
+              Create, customize, and deploy your own AI models.
+              Forge frontier-grade intelligence from the world's best open and proprietary architectures.
+            </p>
+            <p className="text-sm text-text-dim max-w-xl mx-auto mb-10">
+              Powered by GGUF quantization, ONNX Runtime, and llama.cpp for true offline capability.
+              Works on Desktop, Mobile, and Edge devices.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <button
+                onClick={() => setPage('forge')}
+                className="group px-8 py-4 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold text-base shadow-xl shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-[1.03] transition-all duration-300 flex items-center justify-center gap-3"
+              >
+                <IconHammer size={20} className="group-hover:rotate-12 transition-transform" />
+                Forge New Model
+              </button>
+              <button
+                onClick={() => setPage('gallery')}
+                className="px-8 py-4 rounded-xl glass border border-white/10 text-text-primary font-semibold text-base hover:bg-white/10 hover:border-white/20 transition-all duration-300 flex items-center justify-center gap-3"
+              >
+                <IconGrid size={20} />
+                Browse Model Hub
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Stats */}
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 pb-12">
+        <motion.div
+          variants={stagger}
+          initial="initial"
+          animate="animate"
+          className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+        >
+          {[
+            { label: 'Available Models', value: MODEL_CATALOG.length.toString(), icon: <IconGrid size={22} />, color: 'from-indigo-500/20 to-indigo-600/5' },
+            { label: 'Your Forged Models', value: modelCount.toString(), icon: <IconHammer size={22} />, color: 'from-purple-500/20 to-purple-600/5' },
+            { label: 'Architectures', value: '6', icon: <IconCpu size={22} />, color: 'from-cyan-500/20 to-cyan-600/5' },
+            { label: 'Quantization Formats', value: '5', icon: <IconServer size={22} />, color: 'from-pink-500/20 to-pink-600/5' },
+          ].map((s, i) => (
+            <motion.div key={i} variants={fadeUp} className={`glass rounded-2xl p-5 bg-gradient-to-br ${s.color}`}>
+              <div className="text-text-muted mb-3">{s.icon}</div>
+              <div className="text-3xl font-bold text-text-bright mb-1">{s.value}</div>
+              <div className="text-sm text-text-dim">{s.label}</div>
+            </motion.div>
+          ))}
+        </motion.div>
+      </section>
+
+      {/* Featured models */}
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 pb-20">
+        <h2 className="text-2xl font-bold text-text-bright mb-6">Featured Models</h2>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {MODEL_CATALOG.slice(0, 4).map((m, i) => (
+            <motion.div
+              key={m.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1, duration: 0.5 }}
+              className="glass rounded-2xl p-5 hover:bg-white/[0.06] transition-all group cursor-pointer"
+              onClick={() => setPage('gallery')}
+            >
+              <div className="w-12 h-12 rounded-xl overflow-hidden mb-4 bg-white/5 flex items-center justify-center">
+                <img src={m.logo} alt={m.name} className="w-10 h-10 object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" />
+              </div>
+              <h3 className="font-semibold text-text-bright mb-1 group-hover:text-indigo-300 transition-colors">{m.name}</h3>
+              <p className="text-xs text-text-dim mb-3">{m.company}</p>
+              <div className="flex gap-2 flex-wrap">
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-text-muted">{m.parameters} params</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-text-muted">{m.size}</span>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+    </motion.div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
+   GALLERY PAGE
+   ═══════════════════════════════════════════════════ */
+function GalleryPage() {
+  const [filter, setFilter] = useState<ModelCategory | 'all'>('all');
+  const [search, setSearch] = useState('');
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const categories: { id: ModelCategory | 'all'; label: string }[] = [
+    { id: 'all', label: 'All Models' },
+    { id: 'text', label: 'Text / LLM' },
+    { id: 'multimodal', label: 'Multimodal' },
+    { id: 'code', label: 'Code' },
+    { id: 'image', label: 'Image' },
+    { id: 'audio', label: 'Audio' },
+    { id: 'vision', label: 'Vision' },
+  ];
+
+  const filtered = MODEL_CATALOG.filter(m => {
+    if (filter !== 'all' && m.category !== filter) return false;
+    if (search && !m.name.toLowerCase().includes(search.toLowerCase()) && !m.company.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+
+  return (
+    <motion.div {...fadeUp} transition={{ duration: 0.4 }} className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl sm:text-4xl font-bold text-text-bright mb-2">Model Hub</h1>
+          <p className="text-text-muted">Browse {MODEL_CATALOG.length} frontier AI models from leading companies</p>
+        </div>
+        <div className="relative w-full sm:w-72">
+          <IconSearch size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-dim" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search models..."
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm text-text-primary placeholder:text-text-dim focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 transition-all"
           />
         </div>
-        <p className="text-xs text-slate-500 mt-3">
-          {score >= 70 ? 'Your device is well-suited for local AI model inference.' : score >= 40 ? 'Your device can run smaller quantized models. Consider Q4 quantization for best performance.' : 'Limited hardware detected. Cloud-based inference recommended for larger models.'}
-        </p>
       </div>
 
-      {sections.map(section => (
-        <div key={section.title} className="glass rounded-2xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-white/5">
-            <h3 className="font-semibold text-white">{section.title}</h3>
-          </div>
-          <div className="divide-y divide-white/5">
-            {section.items.map(item => (
-              <div key={item.label} className="flex items-center justify-between px-6 py-4">
-                <span className="text-sm text-slate-400">{item.label}</span>
-                <span className={`text-sm font-medium font-mono ${item.color}`}>{item.value}</span>
+      {/* Category filters */}
+      <div className="flex gap-2 mb-8 overflow-x-auto pb-2 scrollbar-none">
+        {categories.map(c => (
+          <button
+            key={c.id}
+            onClick={() => setFilter(c.id)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+              filter === c.id
+                ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                : 'bg-white/5 text-text-muted border border-transparent hover:bg-white/10'
+            }`}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Model grid */}
+      <motion.div variants={stagger} initial="initial" animate="animate" className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+        {filtered.map(m => (
+          <motion.div
+            key={m.id}
+            variants={scaleIn}
+            layout
+            className="glass rounded-2xl overflow-hidden group hover:border-white/20 transition-all duration-300"
+          >
+            {/* Color accent bar */}
+            <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${m.color}, ${m.color}80, transparent)` }} />
+
+            <div className="p-5">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-12 h-12 rounded-xl overflow-hidden bg-white/5 flex-shrink-0 flex items-center justify-center border border-white/5">
+                  <img src={m.logo} alt={m.name} className="w-10 h-10 object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-text-bright text-sm leading-tight">{m.name}</h3>
+                  <p className="text-xs text-text-dim mt-0.5">{m.company}</p>
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
-      ))}
 
-      {/* User Agent */}
-      <div className="glass rounded-2xl p-6">
-        <h3 className="font-semibold text-white mb-3">Raw User Agent</h3>
-        <div className="bg-surface-200 rounded-xl p-4 overflow-x-auto">
-          <code className="text-xs text-slate-400 font-mono break-all">{navigator.userAgent}</code>
+              <p className="text-xs text-text-muted mb-4 leading-relaxed line-clamp-2">{m.description}</p>
+
+              {/* Tags */}
+              <div className="flex flex-wrap gap-1.5 mb-4">
+                {m.capabilities.slice(0, 3).map(c => (
+                  <span key={c} className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-text-muted border border-white/5">
+                    {c}
+                  </span>
+                ))}
+                {m.capabilities.length > 3 && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-text-dim">+{m.capabilities.length - 3}</span>
+                )}
+              </div>
+
+              {/* Specs */}
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                <div className="bg-white/[0.03] rounded-lg px-2.5 py-1.5">
+                  <div className="text-[10px] text-text-dim">Parameters</div>
+                  <div className="text-xs font-semibold text-text-primary">{m.parameters}</div>
+                </div>
+                <div className="bg-white/[0.03] rounded-lg px-2.5 py-1.5">
+                  <div className="text-[10px] text-text-dim">Size (Q4)</div>
+                  <div className="text-xs font-semibold text-text-primary">{m.size}</div>
+                </div>
+              </div>
+
+              {/* Expandable details */}
+              <button
+                onClick={() => setExpanded(expanded === m.id ? null : m.id)}
+                className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors mb-2"
+              >
+                {expanded === m.id ? 'Hide details' : 'View details'}
+              </button>
+
+              <AnimatePresence>
+                {expanded === m.id && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="pt-3 border-t border-white/5 space-y-2">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-text-dim">Architecture</span>
+                        <span className="text-text-muted font-mono text-[11px]">{m.architecture}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-text-dim">Context</span>
+                        <span className="text-text-muted font-mono text-[11px]">{m.contextWindow}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-text-dim">License</span>
+                        <span className="text-text-muted font-mono text-[11px]">{m.license}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-text-dim">Category</span>
+                        <span className="text-text-muted font-mono text-[11px] capitalize">{m.category}</span>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </motion.div>
+        ))}
+      </motion.div>
+
+      {filtered.length === 0 && (
+        <div className="text-center py-20">
+          <IconSearch size={48} className="text-text-dim mx-auto mb-4" />
+          <p className="text-text-muted">No models match your search criteria</p>
         </div>
-      </div>
-    </div>
+      )}
+    </motion.div>
   );
 }
 
-/* ========== CHAT PAGE ========== */
-function ChatPage({ models, forgedModels, activeModelId, onSelectModel }: {
-  models: AIModel[];
-  forgedModels: ForgedModel[];
-  activeModelId: string | null;
-  onSelectModel: (id: string | null) => void;
-}) {
-  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
-  const [input, setInput] = useState('');
-  const [generating, setGenerating] = useState(false);
+/* ═══════════════════════════════════════════════════
+   FORGE STUDIO PAGE
+   ═══════════════════════════════════════════════════ */
+function ForgePage({ onForge, setPage }: { onForge: (m: ForgedModel) => Promise<void>; setPage: (p: Page) => void }) {
+  const [name, setName] = useState('');
+  const [baseId, setBaseId] = useState(MODEL_CATALOG[0].id);
+  const [mergeIds, setMergeIds] = useState<string[]>([]);
+  const [systemPrompt, setSystemPrompt] = useState('You are a helpful, harmless, and honest AI assistant.');
+  const [temperature, setTemperature] = useState(0.7);
+  const [maxTokens, setMaxTokens] = useState(4096);
+  const [taskType, setTaskType] = useState('general');
+  const [quantization, setQuantization] = useState<Quantization>('Q4_K_M');
+  const [mergeStrategy, setMergeStrategy] = useState<MergeStrategy>('slerp');
+  const [isForging, setIsForging] = useState(false);
+  const [forgeProgress, setForgeProgress] = useState(0);
+  const [forgeStage, setForgeStage] = useState('');
 
-  const allReady = [
-    ...models.filter(m => m.downloaded).map(m => ({ id: m.id, name: m.name, icon: m.customIcon || m.logoUrl, type: 'base' as const })),
-    ...forgedModels.filter(f => f.status === 'ready').map(f => ({ id: f.id, name: f.name, icon: f.customIcon || '', type: 'forged' as const })),
-  ];
+  const base = MODEL_CATALOG.find(m => m.id === baseId)!;
 
-  const activeModel = allReady.find(m => m.id === activeModelId);
+  const toggleMerge = (id: string) => {
+    if (id === baseId) return;
+    setMergeIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
 
-  const generateResponse = (userMsg: string): string => {
-    const responses = [
-      `I've analyzed your input: "${userMsg.slice(0, 50)}${userMsg.length > 50 ? '...' : ''}"\n\nBased on my training data and inference capabilities, here's my response:\n\nThis is a demonstration of local AI model inference running directly on your device. In a production environment with actual model weights loaded, I would process your query through transformer attention layers, generating tokens auto-regressively.\n\nKey technical details:\n- Running in offline-capable mode\n- Using quantized weights for efficient inference\n- Processing through local WebGPU/WASM runtime`,
-      `Processing your request through the neural network...\n\nYour query touches on interesting aspects. Let me break this down:\n\n1. The input has been tokenized and embedded\n2. Multi-head attention mechanisms are analyzing context\n3. Feed-forward layers are generating the response\n\nIn a fully deployed version, this would leverage WebGPU for hardware-accelerated inference, achieving near-native performance on supported browsers and Electron/Capacitor runtimes.`,
-      `Inference complete.\n\nRegarding "${userMsg.slice(0, 40)}${userMsg.length > 40 ? '...' : ''}":\n\nThis response is generated locally to demonstrate the chat interface. With actual GGUF model weights loaded via WebAssembly (similar to llama.cpp), this would provide real AI-generated responses.\n\nThe architecture supports:\n- Streaming token generation\n- Context window management\n- KV-cache optimization\n- Batched inference for throughput`,
+  const doForge = async () => {
+    if (!name.trim()) return;
+    setIsForging(true);
+    setForgeProgress(0);
+
+    const stages = [
+      'Initializing forge environment...',
+      'Loading base model weights...',
+      'Applying quantization profile...',
+      mergeIds.length > 0 ? `Merging ${mergeIds.length} model(s) via ${mergeStrategy.toUpperCase()}...` : 'Configuring model parameters...',
+      'Compiling inference graph...',
+      'Optimizing for target device...',
+      'Generating GGUF package...',
+      'Validating model integrity...',
+      'Forge complete!',
     ];
-    return responses[Math.floor(Math.random() * responses.length)];
-  };
 
-  const handleSend = async () => {
-    if (!input.trim() || generating) return;
-
-    const userMsg = input.trim();
-    setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
-    setGenerating(true);
-
-    // Simulate streaming
-    const response = generateResponse(userMsg);
-    let current = '';
-    setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
-
-    for (let i = 0; i < response.length; i++) {
-      await new Promise(r => setTimeout(r, 8 + Math.random() * 12));
-      current += response[i];
-      setMessages(prev => {
-        const next = [...prev];
-        next[next.length - 1] = { role: 'assistant', content: current };
-        return next;
-      });
+    for (let i = 0; i < stages.length; i++) {
+      setForgeStage(stages[i]);
+      setForgeProgress(((i + 1) / stages.length) * 100);
+      await new Promise(r => setTimeout(r, 600 + Math.random() * 400));
     }
-    setGenerating(false);
+
+    const forged: ForgedModel = {
+      id: uid(),
+      name: name.trim(),
+      baseModel: base.name,
+      baseModelId: base.id,
+      systemPrompt,
+      temperature,
+      maxTokens,
+      taskType,
+      quantization,
+      mergeStrategy,
+      mergedWith: mergeIds.map(id => MODEL_CATALOG.find(m => m.id === id)?.name || id),
+      createdAt: new Date().toISOString(),
+      status: 'ready',
+      size: base.size,
+      color: base.color,
+      downloaded: false,
+    };
+
+    await onForge(forged);
+    setTimeout(() => {
+      setIsForging(false);
+      setPage('models');
+    }, 800);
   };
 
-  if (allReady.length === 0) {
+  if (isForging) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh] text-center px-4">
-        <div>
-          <IconModels className="w-16 h-16 mx-auto mb-4 text-slate-700" />
-          <h3 className="text-xl font-bold text-white mb-2">No Models Available</h3>
-          <p className="text-slate-400 max-w-md">Download or forge a model first to start chatting. Go to the Model Hub to get started.</p>
+      <motion.div {...fadeUp} className="max-w-2xl mx-auto px-4 py-20 text-center">
+        {/* Spinning forge animation */}
+        <div className="relative w-40 h-40 mx-auto mb-10">
+          <div className="absolute inset-0 rounded-full border-2 border-indigo-500/40 animate-rotate-slow" />
+          <div className="absolute inset-3 rounded-full border-2 border-purple-500/30 animate-rotate-slow" style={{ animationDirection: 'reverse', animationDuration: '12s' }} />
+          <div className="absolute inset-6 rounded-full border-2 border-cyan-500/20 animate-rotate-slow" style={{ animationDuration: '8s' }} />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-2xl shadow-indigo-500/50 animate-pulse-glow">
+              <IconHammer size={32} className="text-white" />
+            </div>
+          </div>
+          {/* Orbiting particles */}
+          {[0, 1, 2, 3, 4, 5].map(i => (
+            <div
+              key={i}
+              className="absolute w-2 h-2 rounded-full animate-rotate-slow"
+              style={{
+                top: '50%', left: '50%',
+                transformOrigin: `0 ${60 + i * 8}px`,
+                animationDuration: `${3 + i * 0.7}s`,
+                animationDelay: `${i * 0.3}s`,
+                background: `hsl(${240 + i * 20}, 80%, 65%)`,
+                boxShadow: `0 0 8px hsl(${240 + i * 20}, 80%, 65%)`,
+              }}
+            />
+          ))}
         </div>
-      </div>
+
+        <h2 className="text-2xl font-bold text-text-bright mb-3">Forging Your Model</h2>
+        <p className="text-sm text-text-muted mb-2 font-mono">{forgeStage}</p>
+
+        {/* Progress bar */}
+        <div className="w-full max-w-md mx-auto h-2 rounded-full bg-white/5 overflow-hidden mb-3">
+          <motion.div
+            className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"
+            initial={{ width: 0 }}
+            animate={{ width: `${forgeProgress}%` }}
+            transition={{ duration: 0.5 }}
+          />
+        </div>
+        <p className="text-xs text-text-dim">{Math.round(forgeProgress)}% complete</p>
+      </motion.div>
     );
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-73px)]">
-      {/* Model selector */}
-      <div className="px-4 lg:px-8 py-3 border-b border-white/5 bg-surface-100/50">
-        <div className="flex items-center gap-3 overflow-x-auto pb-1">
-          {allReady.map(m => (
+    <motion.div {...fadeUp} transition={{ duration: 0.4 }} className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+      <div className="flex items-center gap-3 mb-8">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+          <IconHammer size={22} className="text-white" />
+        </div>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-text-bright">Forge Studio</h1>
+          <p className="text-sm text-text-muted">Configure and build your custom AI model</p>
+        </div>
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Left: Config */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Model name */}
+          <div className="glass rounded-2xl p-6">
+            <label className="text-sm font-semibold text-text-bright block mb-3">Model Name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="e.g., MyAssistant-7B-v2"
+              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-text-primary placeholder:text-text-dim focus:outline-none focus:border-indigo-500/50 transition-all text-sm"
+            />
+          </div>
+
+          {/* Base model selection */}
+          <div className="glass rounded-2xl p-6">
+            <label className="text-sm font-semibold text-text-bright block mb-3">Base Model</label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {MODEL_CATALOG.filter(m => m.category !== 'image' && m.category !== 'audio').map(m => (
+                <button
+                  key={m.id}
+                  onClick={() => setBaseId(m.id)}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    baseId === m.id
+                      ? 'border-indigo-500/50 bg-indigo-500/10 shadow-lg shadow-indigo-500/10'
+                      : 'border-white/5 bg-white/[0.02] hover:bg-white/5'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <img src={m.logo} alt="" className="w-6 h-6 object-contain rounded" crossOrigin="anonymous" referrerPolicy="no-referrer" />
+                    <span className="text-xs font-semibold text-text-bright truncate">{m.name}</span>
+                  </div>
+                  <span className="text-[10px] text-text-dim">{m.parameters} params</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Merge models */}
+          <div className="glass rounded-2xl p-6">
+            <label className="text-sm font-semibold text-text-bright block mb-1">Merge With (Optional)</label>
+            <p className="text-xs text-text-dim mb-3">Select additional models to merge into your forge</p>
+            <div className="flex flex-wrap gap-2">
+              {MODEL_CATALOG.filter(m => m.id !== baseId && m.category !== 'image' && m.category !== 'audio').map(m => (
+                <button
+                  key={m.id}
+                  onClick={() => toggleMerge(m.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    mergeIds.includes(m.id)
+                      ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                      : 'bg-white/5 text-text-muted border border-transparent hover:bg-white/10'
+                  }`}
+                >
+                  {mergeIds.includes(m.id) && <IconCheck size={12} />}
+                  {m.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* System prompt */}
+          <div className="glass rounded-2xl p-6">
+            <label className="text-sm font-semibold text-text-bright block mb-3">System Prompt</label>
+            <textarea
+              value={systemPrompt}
+              onChange={e => setSystemPrompt(e.target.value)}
+              rows={4}
+              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-text-primary placeholder:text-text-dim focus:outline-none focus:border-indigo-500/50 transition-all text-sm resize-none font-mono"
+            />
+          </div>
+
+          {/* Parameters */}
+          <div className="glass rounded-2xl p-6 grid sm:grid-cols-2 gap-6">
+            <div>
+              <label className="text-sm font-semibold text-text-bright block mb-3">
+                Temperature: <span className="text-indigo-400">{temperature.toFixed(2)}</span>
+              </label>
+              <input type="range" min="0" max="2" step="0.01" value={temperature} onChange={e => setTemperature(+e.target.value)} className="w-full" />
+              <div className="flex justify-between text-[10px] text-text-dim mt-1">
+                <span>Precise</span><span>Balanced</span><span>Creative</span>
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-semibold text-text-bright block mb-3">
+                Max Tokens: <span className="text-indigo-400">{maxTokens.toLocaleString()}</span>
+              </label>
+              <input type="range" min="256" max="32768" step="256" value={maxTokens} onChange={e => setMaxTokens(+e.target.value)} className="w-full" />
+              <div className="flex justify-between text-[10px] text-text-dim mt-1">
+                <span>256</span><span>16K</span><span>32K</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right: Settings + Preview */}
+        <div className="space-y-6">
+          {/* Task type */}
+          <div className="glass rounded-2xl p-6">
+            <label className="text-sm font-semibold text-text-bright block mb-3">Task Type</label>
+            <div className="space-y-2">
+              {['general', 'coding', 'creative', 'analysis', 'education', 'customer-support'].map(t => (
+                <button
+                  key={t}
+                  onClick={() => setTaskType(t)}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${
+                    taskType === t ? 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/20' : 'bg-white/[0.02] text-text-muted hover:bg-white/5 border border-transparent'
+                  }`}
+                >
+                  {t.charAt(0).toUpperCase() + t.slice(1).replace('-', ' ')}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Quantization */}
+          <div className="glass rounded-2xl p-6">
+            <label className="text-sm font-semibold text-text-bright block mb-3">Quantization</label>
+            <div className="space-y-2">
+              {(['Q4_K_M', 'Q5_K_M', 'Q8_0', 'F16', 'F32'] as Quantization[]).map(q => (
+                <button
+                  key={q}
+                  onClick={() => setQuantization(q)}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-xs font-mono transition-all ${
+                    quantization === q ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/20' : 'bg-white/[0.02] text-text-muted hover:bg-white/5 border border-transparent'
+                  }`}
+                >
+                  {q}
+                  <span className="text-text-dim ml-2">
+                    {q === 'Q4_K_M' ? '(Smallest, fast)' : q === 'Q5_K_M' ? '(Balanced)' : q === 'Q8_0' ? '(High quality)' : q === 'F16' ? '(Full precision)' : '(Maximum)'}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Merge strategy */}
+          {mergeIds.length > 0 && (
+            <div className="glass rounded-2xl p-6">
+              <label className="text-sm font-semibold text-text-bright block mb-3">Merge Strategy</label>
+              <div className="space-y-2">
+                {(['slerp', 'ties', 'dare-ties', 'linear', 'passthrough'] as MergeStrategy[]).map(s => (
+                  <button
+                    key={s}
+                    onClick={() => setMergeStrategy(s)}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-xs font-mono uppercase transition-all ${
+                      mergeStrategy === s ? 'bg-purple-500/15 text-purple-300 border border-purple-500/20' : 'bg-white/[0.02] text-text-muted hover:bg-white/5 border border-transparent'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Preview & Build */}
+          <div className="glass rounded-2xl p-6">
+            <h3 className="text-sm font-semibold text-text-bright mb-4">Forge Preview</h3>
+            <div className="space-y-2 text-xs mb-5">
+              <div className="flex justify-between"><span className="text-text-dim">Name</span><span className="text-text-muted font-mono">{name || '---'}</span></div>
+              <div className="flex justify-between"><span className="text-text-dim">Base</span><span className="text-text-muted font-mono">{base.name}</span></div>
+              <div className="flex justify-between"><span className="text-text-dim">Merged</span><span className="text-text-muted font-mono">{mergeIds.length} model(s)</span></div>
+              <div className="flex justify-between"><span className="text-text-dim">Quant</span><span className="text-text-muted font-mono">{quantization}</span></div>
+              <div className="flex justify-between"><span className="text-text-dim">Task</span><span className="text-text-muted font-mono capitalize">{taskType}</span></div>
+            </div>
+
+            <button
+              onClick={doForge}
+              disabled={!name.trim()}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold text-sm shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-[1.02] transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2"
+            >
+              <IconHammer size={18} />
+              Build Model
+            </button>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
+   MY MODELS PAGE
+   ═══════════════════════════════════════════════════ */
+function MyModelsPage({ models, onDelete, onUpdate, setPage }: {
+  models: ForgedModel[];
+  onDelete: (id: string) => Promise<void>;
+  onUpdate: (m: ForgedModel) => Promise<void>;
+  setPage: (p: Page) => void;
+}) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [installing, setInstalling] = useState<string | null>(null);
+  const [installProgress, setInstallProgress] = useState(0);
+  const [device] = useState(() => detectDevice());
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [iconTarget, setIconTarget] = useState<string | null>(null);
+
+  const startEdit = (m: ForgedModel) => { setEditingId(m.id); setEditName(m.name); };
+  const saveEdit = async (m: ForgedModel) => {
+    if (editName.trim()) await onUpdate({ ...m, name: editName.trim() });
+    setEditingId(null);
+  };
+
+  const startIconChange = (id: string) => {
+    setIconTarget(id);
+    fileInputRef.current?.click();
+  };
+
+  const handleIconFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !iconTarget) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const m = models.find(x => x.id === iconTarget);
+      if (m) await onUpdate({ ...m, customIcon: reader.result as string });
+      setIconTarget(null);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const simulateInstall = async (id: string) => {
+    setInstalling(id);
+    setInstallProgress(0);
+    for (let i = 0; i <= 100; i += 2) {
+      setInstallProgress(i);
+      await new Promise(r => setTimeout(r, 60));
+    }
+    const m = models.find(x => x.id === id);
+    if (m) await onUpdate({ ...m, downloaded: true });
+    setInstalling(null);
+  };
+
+  const getBaseLogo = (baseModelId: string) => {
+    return MODEL_CATALOG.find(m => m.id === baseModelId)?.logo || '';
+  };
+
+  if (models.length === 0) {
+    return (
+      <motion.div {...fadeUp} className="max-w-2xl mx-auto px-4 py-24 text-center">
+        <div className="w-20 h-20 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-6">
+          <IconLayers size={40} className="text-text-dim" />
+        </div>
+        <h2 className="text-2xl font-bold text-text-bright mb-3">No Models Yet</h2>
+        <p className="text-text-muted mb-8">Head to the Forge Studio to create your first custom AI model</p>
+        <button
+          onClick={() => setPage('forge')}
+          className="px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold text-sm shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 transition-all flex items-center gap-2 mx-auto"
+        >
+          <IconHammer size={18} />
+          Open Forge Studio
+        </button>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div {...fadeUp} transition={{ duration: 0.4 }} className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+      <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handleIconFile} />
+
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-text-bright mb-2">My Models</h1>
+          <p className="text-text-muted">{models.length} forged model{models.length !== 1 ? 's' : ''}</p>
+        </div>
+        <button
+          onClick={() => setPage('forge')}
+          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold text-sm flex items-center gap-2 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 transition-all"
+        >
+          <IconHammer size={16} />
+          Forge New
+        </button>
+      </div>
+
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        {models.map(m => {
+          const isInstalling = installing === m.id;
+          return (
+            <motion.div
+              key={m.id}
+              layout
+              variants={scaleIn}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="glass rounded-2xl overflow-hidden"
+            >
+              <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${m.color}, ${m.color}80, transparent)` }} />
+              <div className="p-5">
+                {/* Header */}
+                <div className="flex items-start gap-3 mb-4">
+                  <button
+                    onClick={() => startIconChange(m.id)}
+                    className="w-12 h-12 rounded-xl overflow-hidden bg-white/5 flex-shrink-0 flex items-center justify-center border border-white/5 hover:border-indigo-500/30 transition-colors group relative"
+                    title="Change icon"
+                  >
+                    {m.customIcon ? (
+                      <img src={m.customIcon} alt="" className="w-10 h-10 object-cover rounded-lg" />
+                    ) : (
+                      <img src={getBaseLogo(m.baseModelId)} alt="" className="w-10 h-10 object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" />
+                    )}
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
+                      <IconImage size={16} className="text-white" />
+                    </div>
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    {editingId === m.id ? (
+                      <div className="flex gap-1">
+                        <input
+                          type="text"
+                          value={editName}
+                          onChange={e => setEditName(e.target.value)}
+                          className="flex-1 px-2 py-1 rounded-lg bg-white/10 border border-indigo-500/30 text-sm text-text-bright focus:outline-none min-w-0"
+                          autoFocus
+                          onKeyDown={e => e.key === 'Enter' && saveEdit(m)}
+                        />
+                        <button onClick={() => saveEdit(m)} className="p-1 rounded-lg hover:bg-white/10 text-emerald-400"><IconCheck size={16} /></button>
+                        <button onClick={() => setEditingId(null)} className="p-1 rounded-lg hover:bg-white/10 text-red-400"><IconX size={16} /></button>
+                      </div>
+                    ) : (
+                      <h3 className="font-semibold text-text-bright text-sm truncate">{m.name}</h3>
+                    )}
+                    <p className="text-xs text-text-dim mt-0.5">Based on {m.baseModel}</p>
+                  </div>
+                </div>
+
+                {/* Info */}
+                <div className="space-y-1.5 text-xs mb-4">
+                  <div className="flex justify-between"><span className="text-text-dim">Quantization</span><span className="text-text-muted font-mono">{m.quantization}</span></div>
+                  <div className="flex justify-between"><span className="text-text-dim">Task</span><span className="text-text-muted capitalize">{m.taskType}</span></div>
+                  <div className="flex justify-between"><span className="text-text-dim">Temperature</span><span className="text-text-muted">{m.temperature.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span className="text-text-dim">Created</span><span className="text-text-muted">{new Date(m.createdAt).toLocaleDateString()}</span></div>
+                  {m.mergedWith.length > 0 && (
+                    <div className="flex justify-between"><span className="text-text-dim">Merged</span><span className="text-text-muted truncate max-w-[140px]">{m.mergedWith.join(', ')}</span></div>
+                  )}
+                </div>
+
+                {/* Status badge */}
+                <div className="flex items-center gap-2 mb-4">
+                  <div className={`w-2 h-2 rounded-full ${m.downloaded ? 'bg-emerald-400 shadow-lg shadow-emerald-500/50' : 'bg-yellow-400 shadow-lg shadow-yellow-500/50'}`} />
+                  <span className="text-xs text-text-muted">{m.downloaded ? 'Installed' : 'Ready to install'}</span>
+                </div>
+
+                {/* Install progress */}
+                {isInstalling && (
+                  <div className="mb-4">
+                    <div className="w-full h-1.5 rounded-full bg-white/5 overflow-hidden">
+                      <motion.div
+                        className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500"
+                        animate={{ width: `${installProgress}%` }}
+                        transition={{ duration: 0.3 }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-text-dim mt-1">Installing for {device.os}... {installProgress}%</p>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-2">
+                  {!m.downloaded && !isInstalling && (
+                    <button
+                      onClick={() => simulateInstall(m.id)}
+                      className="flex-1 py-2 rounded-lg bg-indigo-500/15 text-indigo-300 text-xs font-medium hover:bg-indigo-500/25 transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <IconDownload size={14} />
+                      Install ({device.installerExt})
+                    </button>
+                  )}
+                  {m.downloaded && (
+                    <button
+                      onClick={() => setPage('runner')}
+                      className="flex-1 py-2 rounded-lg bg-emerald-500/15 text-emerald-300 text-xs font-medium hover:bg-emerald-500/25 transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <IconPlay size={14} />
+                      Run
+                    </button>
+                  )}
+                  <button onClick={() => startEdit(m)} className="p-2 rounded-lg bg-white/5 text-text-muted hover:bg-white/10 hover:text-white transition-colors">
+                    <IconEdit size={14} />
+                  </button>
+                  <button onClick={() => onDelete(m.id)} className="p-2 rounded-lg bg-white/5 text-text-muted hover:bg-red-500/20 hover:text-red-400 transition-colors">
+                    <IconTrash size={14} />
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+    </motion.div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
+   AI CHAT / RUNNER PAGE
+   ═══════════════════════════════════════════════════ */
+function RunnerPage({ models }: { models: ForgedModel[] }) {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [modelStatus, setModelStatus] = useState<'idle' | 'running'>('idle');
+  const endRef = useRef<HTMLDivElement>(null);
+
+  const selected = models.find(m => m.id === selectedId);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const startModel = (id: string) => {
+    setSelectedId(id);
+    setModelStatus('running');
+    setMessages([]);
+  };
+
+  const stopModel = () => {
+    setModelStatus('idle');
+    setSelectedId(null);
+    setMessages([]);
+  };
+
+  const sendMessage = async () => {
+    if (!input.trim() || !selected || isTyping) return;
+    const userMsg: ChatMessage = { id: uid(), role: 'user', content: input.trim(), timestamp: new Date().toISOString() };
+    setMessages(prev => [...prev, userMsg]);
+    setInput('');
+    setIsTyping(true);
+
+    // Simulate streaming response
+    const fullResponse = generateResponse(input, selected.name);
+    const aiMsg: ChatMessage = { id: uid(), role: 'assistant', content: '', timestamp: new Date().toISOString() };
+    setMessages(prev => [...prev, aiMsg]);
+
+    let current = '';
+    for (let i = 0; i < fullResponse.length; i++) {
+      current += fullResponse[i];
+      const snapshot = current;
+      setMessages(prev => prev.map(m => m.id === aiMsg.id ? { ...m, content: snapshot } : m));
+      await new Promise(r => setTimeout(r, 8 + Math.random() * 15));
+    }
+    setIsTyping(false);
+  };
+
+  const getBaseLogo = (baseModelId: string) => {
+    return MODEL_CATALOG.find(m => m.id === baseModelId)?.logo || '';
+  };
+
+  if (models.length === 0) {
+    return (
+      <motion.div {...fadeUp} className="max-w-2xl mx-auto px-4 py-24 text-center">
+        <div className="w-20 h-20 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-6">
+          <IconChat size={40} className="text-text-dim" />
+        </div>
+        <h2 className="text-2xl font-bold text-text-bright mb-3">No Models Available</h2>
+        <p className="text-text-muted">Create and install a model first to start chatting</p>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div {...fadeUp} transition={{ duration: 0.4 }} className="h-[calc(100vh-4rem)] flex">
+      {/* Sidebar: model list */}
+      <div className="w-72 border-r border-white/5 flex-shrink-0 flex flex-col bg-abyss/50 hidden sm:flex">
+        <div className="p-4 border-b border-white/5">
+          <h2 className="text-sm font-bold text-text-bright flex items-center gap-2">
+            <IconServer size={16} />
+            Model Runner
+          </h2>
+        </div>
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          {models.map(m => (
             <button
               key={m.id}
-              onClick={() => { onSelectModel(m.id); setMessages([]); }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all flex-shrink-0 ${activeModelId === m.id ? 'bg-blue-500/10 text-blue-400 border border-blue-500/30' : 'bg-surface-300 text-slate-400 hover:text-white border border-white/5'}`}
+              onClick={() => modelStatus === 'running' && selectedId === m.id ? stopModel() : startModel(m.id)}
+              className={`w-full p-3 rounded-xl text-left transition-all ${
+                selectedId === m.id ? 'bg-indigo-500/15 border border-indigo-500/20' : 'hover:bg-white/5 border border-transparent'
+              }`}
             >
-              {m.icon ? (
-                <img src={m.icon} alt="" className="w-5 h-5 rounded object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-              ) : (
-                <IconForge className="w-4 h-4" />
-              )}
-              {m.name}
-              {m.type === 'forged' && <span className="text-[10px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded">FORGED</span>}
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg overflow-hidden bg-white/5 flex items-center justify-center flex-shrink-0">
+                  {m.customIcon ? (
+                    <img src={m.customIcon} alt="" className="w-6 h-6 object-cover rounded" />
+                  ) : (
+                    <img src={getBaseLogo(m.baseModelId)} alt="" className="w-6 h-6 object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-semibold text-text-bright truncate">{m.name}</div>
+                  <div className="text-[10px] text-text-dim">{m.baseModel}</div>
+                </div>
+                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                  selectedId === m.id && modelStatus === 'running'
+                    ? 'bg-emerald-400 shadow-lg shadow-emerald-500/50'
+                    : 'bg-white/20'
+                }`} />
+              </div>
             </button>
           ))}
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-auto px-4 lg:px-8 py-6 space-y-6">
-        {!activeModel ? (
-          <div className="flex items-center justify-center h-full text-center">
-            <div>
-              <IconPlay className="w-12 h-12 mx-auto mb-3 text-slate-700" />
-              <p className="text-slate-400">Select a model above to start chatting</p>
-            </div>
-          </div>
-        ) : messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-center">
-            <div>
-              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center border border-white/10">
-                {activeModel.icon ? (
-                  <img src={activeModel.icon} alt="" className="w-10 h-10 rounded-xl object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                ) : (
-                  <IconForge className="w-8 h-8 text-purple-400" />
-                )}
+      {/* Chat area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {!selected ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <IconChat size={48} className="text-text-dim mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-text-bright mb-2">Select a Model</h3>
+              <p className="text-sm text-text-muted">Choose a model from the sidebar to start chatting</p>
+              {/* Mobile: show model list inline */}
+              <div className="sm:hidden mt-6 space-y-2 max-w-sm mx-auto">
+                {models.map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => startModel(m.id)}
+                    className="w-full p-3 rounded-xl glass text-left flex items-center gap-3"
+                  >
+                    <div className="w-8 h-8 rounded-lg overflow-hidden bg-white/5 flex items-center justify-center flex-shrink-0">
+                      <img src={getBaseLogo(m.baseModelId)} alt="" className="w-6 h-6 object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-text-bright">{m.name}</div>
+                      <div className="text-[10px] text-text-dim">{m.baseModel}</div>
+                    </div>
+                  </button>
+                ))}
               </div>
-              <h3 className="text-lg font-bold text-white mb-1">{activeModel.name}</h3>
-              <p className="text-slate-400 text-sm">Model loaded. Type a message to begin.</p>
             </div>
           </div>
         ) : (
-          messages.map((msg, i) => (
-            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-2xl rounded-2xl px-5 py-4 text-sm leading-relaxed ${
-                msg.role === 'user'
-                  ? 'bg-blue-500/10 text-white border border-blue-500/20'
-                  : 'glass border border-white/5 text-slate-300'
-              }`}>
-                {msg.role === 'assistant' && (
-                  <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/5">
-                    {activeModel.icon ? (
-                      <img src={activeModel.icon} alt="" className="w-4 h-4 rounded object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                    ) : (
-                      <IconForge className="w-4 h-4 text-purple-400" />
-                    )}
-                    <span className="text-xs font-medium text-slate-500">{activeModel.name}</span>
+          <>
+            {/* Chat header */}
+            <div className="h-14 border-b border-white/5 flex items-center justify-between px-4 bg-abyss/30">
+              <div className="flex items-center gap-3">
+                <button onClick={stopModel} className="sm:hidden p-1.5 rounded-lg hover:bg-white/10">
+                  <IconArrowLeft size={18} className="text-text-muted" />
+                </button>
+                <div className="w-7 h-7 rounded-lg overflow-hidden bg-white/5 flex items-center justify-center">
+                  {selected.customIcon ? (
+                    <img src={selected.customIcon} alt="" className="w-5 h-5 object-cover rounded" />
+                  ) : (
+                    <img src={getBaseLogo(selected.baseModelId)} alt="" className="w-5 h-5 object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" />
+                  )}
+                </div>
+                <div>
+                  <div className="text-sm font-semibold text-text-bright">{selected.name}</div>
+                  <div className="text-[10px] text-text-dim flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    Running
                   </div>
-                )}
-                <p className="whitespace-pre-wrap">{msg.content}{generating && i === messages.length - 1 && msg.role === 'assistant' ? '\u2588' : ''}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={stopModel} className="p-2 rounded-lg hover:bg-red-500/15 text-text-muted hover:text-red-400 transition-colors" title="Stop model">
+                  <IconStop size={16} />
+                </button>
+                <button className="p-2 rounded-lg hover:bg-white/10 text-text-muted transition-colors">
+                  <IconSettings size={16} />
+                </button>
               </div>
             </div>
-          ))
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {messages.length === 0 && (
+                <div className="text-center py-16 text-text-dim text-sm">
+                  Start a conversation with {selected.name}
+                </div>
+              )}
+              {messages.map(msg => (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`flex gap-3 max-w-3xl ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : ''}`}
+                >
+                  <div className={`w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center ${
+                    msg.role === 'user' ? 'bg-indigo-500/20' : 'bg-white/5'
+                  }`}>
+                    {msg.role === 'user' ? (
+                      <IconBrain size={16} className="text-indigo-300" />
+                    ) : selected.customIcon ? (
+                      <img src={selected.customIcon} alt="" className="w-5 h-5 object-cover rounded" />
+                    ) : (
+                      <img src={getBaseLogo(selected.baseModelId)} alt="" className="w-5 h-5 object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" />
+                    )}
+                  </div>
+                  <div className={`rounded-xl px-4 py-3 max-w-[80%] ${
+                    msg.role === 'user'
+                      ? 'bg-indigo-500/15 border border-indigo-500/10'
+                      : 'glass'
+                  }`}>
+                    <pre className="text-sm text-text-primary whitespace-pre-wrap font-sans leading-relaxed">{msg.content}</pre>
+                    {msg.role === 'assistant' && isTyping && msg === messages[messages.length - 1] && (
+                      <span className="inline-block w-1.5 h-4 bg-indigo-400 animate-pulse ml-0.5 rounded-sm" />
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+              <div ref={endRef} />
+            </div>
+
+            {/* Input */}
+            <div className="border-t border-white/5 p-4 bg-abyss/30">
+              <div className="max-w-3xl mx-auto flex gap-3">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+                  placeholder="Type your message..."
+                  className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-sm text-text-primary placeholder:text-text-dim focus:outline-none focus:border-indigo-500/40 transition-all"
+                  disabled={isTyping}
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={!input.trim() || isTyping}
+                  className="p-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <IconSend size={18} />
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </div>
+    </motion.div>
+  );
+}
 
-      {/* Input */}
-      {activeModel && (
-        <div className="px-4 lg:px-8 py-4 border-t border-white/5 bg-surface-100/50">
-          <div className="max-w-4xl mx-auto flex items-end gap-3">
-            <div className="flex-1 relative">
-              <textarea
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                placeholder={`Message ${activeModel.name}...`}
-                rows={1}
-                className="w-full bg-surface-200 text-white px-4 py-3 pr-12 rounded-xl border border-white/10 outline-none focus:border-blue-500/50 resize-none text-sm"
-                style={{ minHeight: '48px', maxHeight: '200px' }}
+/* ═══════════════════════════════════════════════════
+   SYSTEM INFO PAGE
+   ═══════════════════════════════════════════════════ */
+function SystemPage({ device, isOnline }: { device: DeviceInfo; isOnline: boolean }) {
+  const [storageEstimate, setStorageEstimate] = useState<{ usage: number; quota: number } | null>(null);
+
+  useEffect(() => {
+    if (navigator.storage?.estimate) {
+      navigator.storage.estimate().then(est => {
+        setStorageEstimate({ usage: est.usage || 0, quota: est.quota || 0 });
+      });
+    }
+  }, []);
+
+  const fmtBytes = (b: number) => {
+    if (b < 1024) return b + ' B';
+    if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+    if (b < 1073741824) return (b / 1048576).toFixed(1) + ' MB';
+    return (b / 1073741824).toFixed(1) + ' GB';
+  };
+
+  const sections: { title: string; icon: ReactNode; rows: { label: string; value: string; highlight?: boolean }[] }[] = [
+    {
+      title: 'Operating System',
+      icon: <IconMonitor size={20} />,
+      rows: [
+        { label: 'OS', value: device.os },
+        { label: 'Version', value: device.osVersion || 'N/A' },
+        { label: 'Device Type', value: device.deviceType.charAt(0).toUpperCase() + device.deviceType.slice(1) },
+        { label: 'Architecture', value: device.architecture },
+      ],
+    },
+    {
+      title: 'Hardware',
+      icon: <IconCpu size={20} />,
+      rows: [
+        { label: 'CPU Cores', value: device.cores.toString() },
+        { label: 'Memory', value: device.memory + ' GB' },
+        { label: 'GPU', value: device.gpu.length > 50 ? device.gpu.slice(0, 50) + '...' : device.gpu },
+      ],
+    },
+    {
+      title: 'Browser & Runtime',
+      icon: <IconServer size={20} />,
+      rows: [
+        { label: 'Browser', value: device.browser },
+        { label: 'Electron', value: device.isElectron ? 'Yes' : 'No' },
+        { label: 'Capacitor', value: device.isCapacitor ? 'Yes' : 'No' },
+        { label: 'PWA Mode', value: device.isPWA ? 'Yes' : 'No' },
+      ],
+    },
+    {
+      title: 'Network & Storage',
+      icon: isOnline ? <IconWifi size={20} /> : <IconWifiOff size={20} />,
+      rows: [
+        { label: 'Status', value: isOnline ? 'Online' : 'Offline', highlight: true },
+        { label: 'Storage Used', value: storageEstimate ? fmtBytes(storageEstimate.usage) : 'N/A' },
+        { label: 'Storage Quota', value: storageEstimate ? fmtBytes(storageEstimate.quota) : 'N/A' },
+      ],
+    },
+    {
+      title: 'Installer',
+      icon: <IconDownload size={20} />,
+      rows: [
+        { label: 'Package Type', value: device.installerType },
+        { label: 'Extension', value: device.installerExt },
+        { label: 'Offline Support', value: 'GGUF + ONNX Runtime' },
+        { label: 'Backend', value: 'llama.cpp / ONNX' },
+      ],
+    },
+  ];
+
+  // Compute compatibility score
+  const score = Math.min(100, (device.cores >= 4 ? 25 : 10) + (device.memory >= 8 ? 25 : device.memory >= 4 ? 15 : 5) + (device.gpu !== 'Unknown' ? 25 : 10) + (isOnline ? 15 : 5) + (device.deviceType === 'desktop' ? 10 : 5));
+
+  return (
+    <motion.div {...fadeUp} transition={{ duration: 0.4 }} className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+      <div className="flex items-center gap-3 mb-8">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
+          <IconMonitor size={22} className="text-white" />
+        </div>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-text-bright">System Information</h1>
+          <p className="text-sm text-text-muted">Device capabilities and compatibility analysis</p>
+        </div>
+      </div>
+
+      {/* Compatibility score */}
+      <div className="glass rounded-2xl p-6 mb-8">
+        <div className="flex flex-col sm:flex-row items-center gap-6">
+          <div className="relative w-28 h-28 flex-shrink-0">
+            <svg className="w-28 h-28 -rotate-90" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="42" fill="none" stroke="#ffffff08" strokeWidth="8" />
+              <circle
+                cx="50" cy="50" r="42" fill="none"
+                stroke={score >= 75 ? '#10b981' : score >= 50 ? '#f59e0b' : '#ef4444'}
+                strokeWidth="8"
+                strokeLinecap="round"
+                strokeDasharray={`${score * 2.64} ${264 - score * 2.64}`}
               />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-2xl font-bold text-text-bright">{score}</span>
             </div>
-            <button
-              onClick={handleSend}
-              disabled={!input.trim() || generating}
-              className={`p-3 rounded-xl transition-all flex-shrink-0 ${input.trim() && !generating ? 'bg-blue-500 hover:bg-blue-600 text-white' : 'bg-surface-400 text-slate-600 cursor-not-allowed'}`}
-            >
-              {generating ? <IconStop className="w-5 h-5" /> : <IconSend className="w-5 h-5" />}
-            </button>
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-text-bright mb-1">
+              {score >= 75 ? 'Excellent Compatibility' : score >= 50 ? 'Good Compatibility' : 'Limited Compatibility'}
+            </h3>
+            <p className="text-sm text-text-muted">
+              {score >= 75
+                ? 'Your device is well-suited for running AI models locally with full performance.'
+                : score >= 50
+                ? 'Your device can run most quantized models. Consider Q4 quantization for best experience.'
+                : 'Your device may struggle with larger models. Use cloud inference or small Q4 models.'}
+            </p>
           </div>
         </div>
-      )}
-    </div>
+      </div>
+
+      {/* Info sections */}
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        {sections.map((s, i) => (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.08 }}
+            className="glass rounded-2xl p-5"
+          >
+            <div className="flex items-center gap-2 mb-4 text-text-muted">
+              {s.icon}
+              <h3 className="text-sm font-semibold text-text-bright">{s.title}</h3>
+            </div>
+            <div className="space-y-2.5">
+              {s.rows.map((r, j) => (
+                <div key={j} className="flex justify-between items-center">
+                  <span className="text-xs text-text-dim">{r.label}</span>
+                  <span className={`text-xs font-mono ${
+                    r.highlight ? (r.value === 'Online' ? 'text-emerald-400' : 'text-red-400') : 'text-text-muted'
+                  } text-right max-w-[60%] truncate`}>
+                    {r.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* User agent */}
+      <div className="glass rounded-2xl p-5 mt-5">
+        <h3 className="text-sm font-semibold text-text-bright mb-3">User Agent String</h3>
+        <code className="text-[11px] text-text-dim font-mono break-all leading-relaxed block">{navigator.userAgent}</code>
+      </div>
+    </motion.div>
   );
 }
