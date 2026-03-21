@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { v4 as uuid } from 'uuid';
 import type { ChatSession, ChatMessage, ChatSettings } from '@/types';
 import { DEFAULT_CHAT_SETTINGS } from '@/types';
-import * as api from '@/services/api';
+import * as api from '@/services/forgeApi';
 import { useSettingsStore } from './settingsStore';
 
 interface ChatState {
