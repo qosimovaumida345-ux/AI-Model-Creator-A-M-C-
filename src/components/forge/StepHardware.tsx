@@ -1,12 +1,22 @@
+import { useState, useEffect } from 'react';
 import { useForgeStore } from '@/stores/forgeStore';
 import { motion } from 'framer-motion';
 
 export default function StepHardware() {
   const { selectedBaseModel, selectedBaseModelName, trainableModelIds,
-    config, prevStep, startTraining, isTraining } = useForgeStore();
+    config, updateConfig, prevStep, startTraining, isTraining } = useForgeStore();
 
   const isCloudAvailable = selectedBaseModel ? trainableModelIds.includes(selectedBaseModel) : false;
-  const hasReplicateKey = true; // We'll assume it's configured on the backend
+
+  // Local state for the selected hardware (default to local)
+  const [selectedHardware, setSelectedHardware] = useState<'cloud' | 'local'>('local');
+
+  // If they change to a model that doesn't support cloud, force local
+  useEffect(() => {
+    if (!isCloudAvailable) {
+      setSelectedHardware('local');
+    }
+  }, [isCloudAvailable]);
 
   const gpuInfo = {
     cloud: {
@@ -19,11 +29,15 @@ export default function StepHardware() {
       name: 'Simulated Local',
       type: 'CPU (demonstration)',
       available: true,
-      desc: 'Runs a simulated training loop for demonstration. Set REPLICATE_API_TOKEN for real GPU training.',
+      desc: 'Runs a simulated training loop for demonstration. No API keys required.',
     },
   };
 
-  const willUseCloud = isCloudAvailable && hasReplicateKey;
+  const handleStart = () => {
+    // Save your manual choice to the config before sending to backend
+    updateConfig({ hardwareProvider: selectedHardware });
+    startTraining();
+  };
 
   return (
     <div className="space-y-6">
@@ -36,16 +50,17 @@ export default function StepHardware() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Cloud GPU */}
         <motion.div
-          whileHover={{ scale: 1.01 }}
-          className={`p-5 rounded-xl border transition-all
-            ${willUseCloud
+          whileHover={isCloudAvailable ? { scale: 1.01 } : {}}
+          onClick={() => isCloudAvailable && setSelectedHardware('cloud')}
+          className={`p-5 rounded-xl border transition-all ${isCloudAvailable ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}
+            ${selectedHardware === 'cloud'
               ? 'bg-purple-500/10 border-purple-500/30 ring-1 ring-purple-500/20'
-              : 'bg-white/[0.02] border-white/10 opacity-60'
+              : 'bg-white/[0.02] border-white/10 hover:border-white/20'
             }`}
         >
           <div className="flex items-center gap-3 mb-3">
             <div className={`w-10 h-10 rounded-lg flex items-center justify-center
-              ${willUseCloud ? 'bg-purple-500/20 text-purple-400' : 'bg-white/5 text-white/30'}`}>
+              ${selectedHardware === 'cloud' ? 'bg-purple-500/20 text-purple-400' : 'bg-white/5 text-white/30'}`}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
               </svg>
@@ -56,9 +71,9 @@ export default function StepHardware() {
                 {gpuInfo.cloud.type}
               </span>
             </div>
-            {willUseCloud && (
-              <span className="ml-auto px-2 py-0.5 text-[9px] font-bold bg-green-500/20 text-green-400 rounded">
-                ACTIVE
+            {selectedHardware === 'cloud' && (
+              <span className="ml-auto px-2 py-0.5 text-[9px] font-bold bg-purple-500/20 text-purple-400 rounded">
+                SELECTED
               </span>
             )}
           </div>
@@ -68,15 +83,16 @@ export default function StepHardware() {
         {/* Local */}
         <motion.div
           whileHover={{ scale: 1.01 }}
-          className={`p-5 rounded-xl border transition-all
-            ${!willUseCloud
+          onClick={() => setSelectedHardware('local')}
+          className={`p-5 rounded-xl border transition-all cursor-pointer
+            ${selectedHardware === 'local'
               ? 'bg-cyan-500/10 border-cyan-500/30 ring-1 ring-cyan-500/20'
-              : 'bg-white/[0.02] border-white/10 opacity-60'
+              : 'bg-white/[0.02] border-white/10 hover:border-white/20'
             }`}
         >
           <div className="flex items-center gap-3 mb-3">
             <div className={`w-10 h-10 rounded-lg flex items-center justify-center
-              ${!willUseCloud ? 'bg-cyan-500/20 text-cyan-400' : 'bg-white/5 text-white/30'}`}>
+              ${selectedHardware === 'local' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-white/5 text-white/30'}`}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="2" y="2" width="20" height="8" rx="2" /><rect x="2" y="14" width="20" height="8" rx="2" />
                 <line x1="6" y1="6" x2="6.01" y2="6" /><line x1="6" y1="18" x2="6.01" y2="18" />
@@ -86,9 +102,9 @@ export default function StepHardware() {
               <h3 className="text-sm font-semibold text-white">{gpuInfo.local.name}</h3>
               <span className="text-[10px] text-white/30">{gpuInfo.local.type}</span>
             </div>
-            {!willUseCloud && (
+            {selectedHardware === 'local' && (
               <span className="ml-auto px-2 py-0.5 text-[9px] font-bold bg-cyan-500/20 text-cyan-400 rounded">
-                ACTIVE
+                SELECTED
               </span>
             )}
           </div>
@@ -104,11 +120,11 @@ export default function StepHardware() {
             ['Base Model', selectedBaseModelName || '-'],
             ['Epochs', config.epochs],
             ['Batch Size', config.batchSize],
-            ['Learning Rate', config.learningRate.toExponential(1)],
+            ['Learning Rate', config.learningRate?.toExponential(1) || '2.0e-4'],
             ['LoRA Rank', config.loraRank],
             ['LoRA Alpha', config.loraAlpha],
-            ['Max Seq Length', config.maxSequenceLength.toLocaleString()],
-            ['Optimizer', config.optimizer.toUpperCase()],
+            ['Max Seq Length', config.maxSequenceLength?.toLocaleString() || '2,048'],
+            ['Optimizer', (config.optimizer || 'adamw').toUpperCase()],
           ].map(([label, value]) => (
             <div key={label as string}>
               <div className="text-[10px] text-white/30 uppercase">{label}</div>
@@ -126,7 +142,7 @@ export default function StepHardware() {
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          onClick={startTraining}
+          onClick={handleStart}
           disabled={isTraining}
           className="px-8 py-3 rounded-xl bg-gradient-to-r from-orange-500 via-red-500 to-purple-500
                      text-white font-bold text-base disabled:opacity-50
