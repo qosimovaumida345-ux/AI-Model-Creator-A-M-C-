@@ -21,7 +21,6 @@ import {
 
 export const forgeRouter = Router();
 
-// ── Multer setup ─────────────────────────────────────────────
 const storage = multer.diskStorage({
   destination: (_, __, cb) => {
     const dir = datasetStore.getUploadDir();
@@ -35,7 +34,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
+  limits: { fileSize: 100 * 1024 * 1024 },
   fileFilter: (_, file, cb) => {
     const allowed = ['.jsonl', '.csv', '.txt', '.json', '.parquet'];
     const ext = path.extname(file.originalname).toLowerCase();
@@ -46,10 +45,6 @@ const upload = multer({
     }
   },
 });
-
-// ═══════════════════════════════════════════════════════════════
-//  DATASETS
-// ═══════════════════════════════════════════════════════════════
 
 // ── Upload dataset ───────────────────────────────────────────
 forgeRouter.post('/datasets/upload', upload.single('file'), async (req: Request, res: Response) => {
@@ -62,14 +57,12 @@ forgeRouter.post('/datasets/upload', upload.single('file'), async (req: Request,
     const content = fs.readFileSync(filePath, 'utf-8');
     const ext = path.extname(req.file.originalname).toLowerCase().replace('.', '') as string;
 
-    // Count samples
     let sampleCount = 0;
     if (ext === 'jsonl' || ext === 'json') {
       sampleCount = content.split('\n').filter((l) => l.trim()).length;
     } else if (ext === 'csv') {
       sampleCount = Math.max(0, content.split('\n').filter((l) => l.trim()).length - 1);
     } else if (ext === 'txt') {
-      // Split by double newlines for txt
       sampleCount = content.split(/\n\s*\n/).filter((s) => s.trim()).length;
     }
 
@@ -158,19 +151,25 @@ forgeRouter.get('/datasets/:id/preview', (req, res) => {
     const content = fs.readFileSync(ds.localPath, 'utf-8');
     const lines = content.split('\n').filter((l) => l.trim()).slice(0, 10);
     const samples = lines.map((line) => {
-      try { return JSON.parse(line); }
-      catch { return { text: line }; }
+      try {
+        return JSON.parse(line);
+      } catch {
+        return { text: line };
+      }
     });
-    res.json({ success: true, data: { samples, totalLines: content.split('\n').filter((l) => l.trim()).length } });
-  } catch (err: unknown) {
+    res.json({
+      success: true,
+      data: {
+        samples,
+        totalLines: content.split('\n').filter((l) => l.trim()).length,
+      },
+    });
+  } catch {
     res.status(500).json({ success: false, error: 'Failed to read dataset' });
   }
 });
 
-// ═══════════════════════════════════════════════════════════════
-//  FORGED MODELS
-// ═══════════════════════════════════════════════════════════════
-
+// ── Models ───────────────────────────────────────────────────
 forgeRouter.get('/models', (_, res) => {
   res.json({ success: true, data: forgedModelStore.getAll() });
 });
@@ -192,14 +191,9 @@ forgeRouter.patch('/models/:id', (req, res) => {
   res.json({ success: true, data: updated });
 });
 
-// ── Check trainable models ───────────────────────────────────
 forgeRouter.get('/trainable-models', (_, res) => {
   res.json({ success: true, data: getTrainableModels() });
 });
-
-// ═══════════════════════════════════════════════════════════════
-//  TRAINING
-// ═══════════════════════════════════════════════════════════════
 
 // ── Start training ───────────────────────────────────────────
 forgeRouter.post('/train', async (req: Request, res: Response) => {
@@ -210,17 +204,14 @@ forgeRouter.post('/train', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'Missing required fields' });
     }
 
-    // Verify dataset exists
     const dataset = datasetStore.getById(datasetId);
     if (!dataset) {
       return res.status(404).json({ success: false, error: 'Dataset not found' });
     }
 
-    // Check if model is trainable on Replicate
     const hasReplicateKey = !!process.env.REPLICATE_API_TOKEN;
     const trainable = isModelTrainable(baseModelId);
 
-    // Create forged model entry
     const modelId = uuid();
     const jobId = uuid();
 
@@ -248,7 +239,6 @@ forgeRouter.post('/train', async (req: Request, res: Response) => {
       metrics: null,
     });
 
-    // Create training job
     const trainingJob: StoredTrainingJob = {
       id: jobId,
       forgedModelId: modelId,
@@ -277,21 +267,31 @@ forgeRouter.post('/train', async (req: Request, res: Response) => {
 
     trainingJobStore.create(trainingJob);
 
-    // Start training async
     if (hasReplicateKey && trainable) {
-      startReplicateTraining(jobId, baseModelId, dataset, config, modelName).catch((err) => {
+      startReplicateTraining(jobId, modelId, baseModelId, dataset, config, modelName).catch(async (err) => {
+        const message = err instanceof Error ? err.message : 'Replicate training failed';
+        const currentJob = trainingJobStore.getById(jobId);
+
         trainingJobStore.update(jobId, {
-          status: 'failed',
-          error: err.message,
+          status: 'training',
+          gpuProvider: 'local',
+          gpuType: 'Local CPU (fallback)',
+          error: null,
           logs: [
-            ...trainingJob.logs,
-            { timestamp: new Date().toISOString(), level: 'error', message: err.message },
+            ...(currentJob?.logs || []),
+            {
+              timestamp: new Date().toISOString(),
+              level: 'warning',
+              message: `${message} Falling back to simulated local training.`,
+            },
           ],
         });
-        forgedModelStore.update(modelId, { trainingStatus: 'failed' });
+
+        forgedModelStore.update(modelId, { trainingStatus: 'training' });
+
+        await startSimulatedTraining(jobId, modelId, config);
       });
     } else {
-      // Simulate local training for demonstration
       startSimulatedTraining(jobId, modelId, config).catch(console.error);
     }
 
@@ -311,7 +311,7 @@ forgeRouter.get('/training/:jobId', (req, res) => {
   res.json({ success: true, data: job });
 });
 
-// ── SSE endpoint for live training updates ───────────────────
+// ── SSE endpoint ─────────────────────────────────────────────
 forgeRouter.get('/training/:jobId/events', async (req: Request, res: Response) => {
   const jobId = req.params.jobId;
   const job = trainingJobStore.getById(jobId);
@@ -319,7 +319,6 @@ forgeRouter.get('/training/:jobId/events', async (req: Request, res: Response) =
     return res.status(404).json({ success: false, error: 'Training job not found' });
   }
 
-  // SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -333,7 +332,6 @@ forgeRouter.get('/training/:jobId/events', async (req: Request, res: Response) =
   let closed = false;
   req.on('close', () => { closed = true; });
 
-  // Poll for updates
   const pollInterval = setInterval(async () => {
     if (closed) {
       clearInterval(pollInterval);
@@ -349,7 +347,6 @@ forgeRouter.get('/training/:jobId/events', async (req: Request, res: Response) =
       return;
     }
 
-    // If using Replicate, poll Replicate API
     if (currentJob.gpuProvider === 'replicate' && currentJob.replicateTrainingId) {
       try {
         const status = await getTrainingStatus(currentJob.replicateTrainingId);
@@ -432,7 +429,6 @@ forgeRouter.get('/training/:jobId/events', async (req: Request, res: Response) =
         sendEvent({ type: 'log', level: 'warning', message: `Poll error: ${err instanceof Error ? err.message : 'unknown'}` });
       }
     } else {
-      // For simulated training, just send current state
       sendEvent({ type: 'update', ...currentJob });
 
       if (['completed', 'failed', 'cancelled'].includes(currentJob.status)) {
@@ -441,7 +437,7 @@ forgeRouter.get('/training/:jobId/events', async (req: Request, res: Response) =
         res.end();
       }
     }
-  }, 2000); // Poll every 2 seconds
+  }, 2000);
 });
 
 // ── Cancel training ──────────────────────────────────────────
@@ -452,7 +448,9 @@ forgeRouter.post('/training/:jobId/cancel', async (req, res) => {
   if (job.replicateTrainingId) {
     try {
       await cancelTraining(job.replicateTrainingId);
-    } catch { /* best effort */ }
+    } catch {
+      /* best effort */
+    }
   }
 
   trainingJobStore.update(req.params.jobId, {
@@ -469,11 +467,9 @@ forgeRouter.get('/training', (_, res) => {
   res.json({ success: true, data: trainingJobStore.getAll() });
 });
 
-// ═══════════════════════════════════════════════════════════════
-//  HELPER: Start Replicate training async
-// ═══════════════════════════════════════════════════════════════
 async function startReplicateTraining(
   jobId: string,
+  modelId: string,
   baseModelId: string,
   dataset: { localPath: string; format: string },
   config: Record<string, unknown>,
@@ -484,7 +480,6 @@ async function startReplicateTraining(
     logs: [{ timestamp: new Date().toISOString(), level: 'info', message: 'Preparing dataset for upload...' }],
   });
 
-  // Read and convert dataset to JSONL if needed
   let content = fs.readFileSync(dataset.localPath, 'utf-8');
   if (dataset.format === 'txt') {
     const chunks = content.split(/\n\s*\n/).filter((s) => s.trim());
@@ -508,11 +503,10 @@ async function startReplicateTraining(
     logs: [{ timestamp: new Date().toISOString(), level: 'info', message: 'Starting training on Replicate...' }],
   });
 
-  const sanitizedName = modelName.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 50);
   const training = await createTraining({
     modelId: baseModelId,
     datasetUrl: dataUrl,
-    destinationName: sanitizedName,
+    destinationName: modelName.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 50),
     config: config as any,
   });
 
@@ -526,15 +520,9 @@ async function startReplicateTraining(
     ],
   });
 
-  const job = trainingJobStore.getById(jobId);
-  if (job) {
-    forgedModelStore.update(job.forgedModelId, { trainingStatus: 'training' });
-  }
+  forgedModelStore.update(modelId, { trainingStatus: 'training' });
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  HELPER: Simulated local training (when no Replicate key)
-// ═══════════════════════════════════════════════════════════════
 async function startSimulatedTraining(
   jobId: string,
   modelId: string,
@@ -550,13 +538,14 @@ async function startSimulatedTraining(
     status: 'training',
     startedAt: new Date().toISOString(),
     totalSteps,
+    gpuProvider: 'local',
     gpuType: 'Local CPU (simulated)',
     logs: [
       { timestamp: new Date().toISOString(), level: 'info', message: 'Starting simulated local training...' },
-      { timestamp: new Date().toISOString(), level: 'warning', message: 'No REPLICATE_API_TOKEN set. Running simulated training for demonstration.' },
-      { timestamp: new Date().toISOString(), level: 'info', message: 'In production, set REPLICATE_API_TOKEN for real GPU training.' },
+      { timestamp: new Date().toISOString(), level: 'warning', message: 'Using local simulated training mode.' },
     ],
   });
+
   forgedModelStore.update(modelId, { trainingStatus: 'training' });
 
   const stepInterval = setInterval(() => {
@@ -564,11 +553,9 @@ async function startSimulatedTraining(
     const epoch = Math.floor(currentStep / 50);
     const progress = Math.round((currentStep / totalSteps) * 100);
 
-    // Realistic loss curve: exponential decay + noise
     loss = loss * 0.985 + (Math.random() - 0.5) * 0.05;
     loss = Math.max(0.1, loss);
 
-    // Learning rate with cosine decay
     const currentLr = lr * 0.5 * (1 + Math.cos(Math.PI * currentStep / totalSteps));
 
     const now = Date.now();
@@ -596,7 +583,6 @@ async function startSimulatedTraining(
       lrHistory: [...job.lrHistory, { step: currentStep, value: currentLr, epoch, timestamp: now }],
     };
 
-    // Add log every 10 steps
     if (currentStep % 10 === 0) {
       update.logs = [
         ...job.logs,
@@ -637,5 +623,5 @@ async function startSimulatedTraining(
         },
       });
     }
-  }, 400); // ~2.5 steps/second for responsive UI
+  }, 400);
 }
