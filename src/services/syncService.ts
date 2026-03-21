@@ -1,6 +1,16 @@
 import { v4 as uuid } from 'uuid';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+function getApiBase(): string {
+  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    return `${window.location.origin}/api`;
+  }
+  return 'http://localhost:3001/api';
+}
+
+const API_BASE = getApiBase();
 
 // Generate or retrieve persistent device ID
 function getDeviceId(): string {
@@ -68,6 +78,11 @@ export async function pushSync(data: {
         ...data,
       }),
     });
+    
+    if (!res.ok) {
+      return { success: false, error: `Server error: ${res.status}` };
+    }
+    
     const json = await res.json();
     if (!json.success) return { success: false, error: json.error };
     return { success: true, checksum: json.data.checksum };
@@ -97,6 +112,11 @@ export async function pullSync(lastChecksum: string | null): Promise<{
         lastChecksum,
       }),
     });
+    
+    if (!res.ok) {
+      return { success: false, hasChanges: false, error: `Server error: ${res.status}` };
+    }
+    
     const json = await res.json();
     if (!json.success) return { success: false, hasChanges: false, error: json.error };
     return {
@@ -122,6 +142,7 @@ export async function getSyncStatus(): Promise<{
 } | null> {
   try {
     const res = await fetch(`${API_BASE}/sync/status`);
+    if (!res.ok) return null;
     const json = await res.json();
     return json.data || null;
   } catch {
@@ -133,6 +154,7 @@ export async function getSyncStatus(): Promise<{
 export async function exportAllData(): Promise<void> {
   try {
     const res = await fetch(`${API_BASE}/export/all`);
+    if (!res.ok) throw new Error(`Export failed: ${res.status}`);
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -156,6 +178,7 @@ export async function importData(file: File): Promise<{ importedModels: number; 
     body: JSON.stringify(data),
   });
 
+  if (!res.ok) throw new Error(`Import failed: ${res.status}`);
   const json = await res.json();
   if (!json.success) throw new Error(json.error);
   return json.data;

@@ -1,7 +1,14 @@
-const API_BASE =
-  typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL
-    ? import.meta.env.VITE_API_URL
-    : 'http://localhost:3001/api';
+function getApiBase(): string {
+  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    return `${window.location.origin}/api`;
+  }
+  return 'http://localhost:3001/api';
+}
+
+const API_BASE = getApiBase();
 
 interface ChatCompletionParams {
   model: string;
@@ -19,13 +26,19 @@ interface ChatCompletionParams {
 }
 
 export async function fetchSessions() {
-  const res = await fetch(`${API_BASE}/chat/sessions`);
-  const data = await res.json();
-  return data.data || [];
+  try {
+    const res = await fetch(`${API_BASE}/chat/sessions`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.data || [];
+  } catch {
+    return [];
+  }
 }
 
 export async function fetchSession(id: string) {
   const res = await fetch(`${API_BASE}/chat/sessions/${id}`);
+  if (!res.ok) throw new Error(`Failed to fetch session: ${res.status}`);
   const data = await res.json();
   return data.data;
 }
@@ -41,6 +54,7 @@ export async function createSession(params: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
   });
+  if (!res.ok) throw new Error(`Failed to create session: ${res.status}`);
   const data = await res.json();
   return data.data;
 }
@@ -51,12 +65,17 @@ export async function updateSession(id: string, patch: Record<string, unknown>) 
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),
   });
+  if (!res.ok) throw new Error(`Failed to update session: ${res.status}`);
   const data = await res.json();
   return data.data;
 }
 
 export async function deleteSession(id: string) {
-  await fetch(`${API_BASE}/chat/sessions/${id}`, { method: 'DELETE' });
+  try {
+    await fetch(`${API_BASE}/chat/sessions/${id}`, { method: 'DELETE' });
+  } catch {
+    // Continue even if server delete fails
+  }
 }
 
 export async function checkOllamaStatus(): Promise<{
@@ -65,6 +84,7 @@ export async function checkOllamaStatus(): Promise<{
 }> {
   try {
     const res = await fetch(`${API_BASE}/chat/ollama/status`);
+    if (!res.ok) return { available: false, models: [] };
     const data = await res.json();
     return data.data || { available: false, models: [] };
   } catch {
@@ -204,6 +224,7 @@ export async function sendChat(params: ChatCompletionParams): Promise<string> {
     }),
   });
 
+  if (!response.ok) throw new Error(`Chat failed: ${response.status}`);
   const data = await response.json();
   if (!data.success) throw new Error(data.error || 'Chat failed');
   return data.data.choices[0].message.content;

@@ -1,7 +1,19 @@
-const API_BASE =
-  typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL
-    ? import.meta.env.VITE_API_URL
-    : 'http://localhost:3001/api';
+function getApiBase(): string {
+  // 1. Check Vite env (set at build time)
+  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // 2. In production, use same origin (works if backend serves frontend)
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    return `${window.location.origin}/api`;
+  }
+  
+  // 3. Local development fallback
+  return 'http://localhost:3001/api';
+}
+
+const API_BASE = getApiBase();
 
 export async function uploadDataset(file: File) {
   const formData = new FormData();
@@ -11,6 +23,11 @@ export async function uploadDataset(file: File) {
     method: 'POST',
     body: formData,
   });
+  
+  if (!res.ok) {
+    throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
+  }
+  
   const data = await res.json();
   if (!data.success) throw new Error(data.error);
   return data.data;
@@ -22,36 +39,60 @@ export async function pasteDataset(content: string, name: string, format: string
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ content, name, format }),
   });
+  
+  if (!res.ok) {
+    throw new Error(`Save failed: ${res.status} ${res.statusText}`);
+  }
+  
   const data = await res.json();
   if (!data.success) throw new Error(data.error);
   return data.data;
 }
 
 export async function fetchDatasets() {
-  const res = await fetch(`${API_BASE}/forge/datasets`);
-  const data = await res.json();
-  return data.data || [];
+  try {
+    const res = await fetch(`${API_BASE}/forge/datasets`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.data || [];
+  } catch {
+    return [];
+  }
 }
 
 export async function deleteDataset(id: string) {
-  await fetch(`${API_BASE}/forge/datasets/${id}`, { method: 'DELETE' });
+  try {
+    await fetch(`${API_BASE}/forge/datasets/${id}`, { method: 'DELETE' });
+  } catch {
+    // Continue even if server delete fails
+  }
 }
 
 export async function previewDataset(id: string) {
   const res = await fetch(`${API_BASE}/forge/datasets/${id}/preview`);
+  if (!res.ok) throw new Error(`Preview failed: ${res.status}`);
   const data = await res.json();
   if (!data.success) throw new Error(data.error);
   return data.data;
 }
 
 export async function fetchForgedModels() {
-  const res = await fetch(`${API_BASE}/forge/models`);
-  const data = await res.json();
-  return data.data || [];
+  try {
+    const res = await fetch(`${API_BASE}/forge/models`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.data || [];
+  } catch {
+    return [];
+  }
 }
 
 export async function deleteForgedModel(id: string) {
-  await fetch(`${API_BASE}/forge/models/${id}`, { method: 'DELETE' });
+  try {
+    await fetch(`${API_BASE}/forge/models/${id}`, { method: 'DELETE' });
+  } catch {
+    // Continue even if server delete fails
+  }
 }
 
 export async function updateForgedModel(id: string, patch: Record<string, unknown>) {
@@ -60,6 +101,7 @@ export async function updateForgedModel(id: string, patch: Record<string, unknow
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),
   });
+  if (!res.ok) throw new Error(`Update failed: ${res.status}`);
   const data = await res.json();
   return data.data;
 }
@@ -79,6 +121,11 @@ export async function startTraining(params: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
   });
+  
+  if (!res.ok) {
+    throw new Error(`Training request failed: ${res.status} ${res.statusText}`);
+  }
+  
   const data = await res.json();
   if (!data.success) throw new Error(data.error);
   return data.data;
@@ -86,13 +133,18 @@ export async function startTraining(params: {
 
 export async function fetchTrainingJob(jobId: string) {
   const res = await fetch(`${API_BASE}/forge/training/${jobId}`);
+  if (!res.ok) throw new Error(`Failed to fetch training job: ${res.status}`);
   const data = await res.json();
   if (!data.success) throw new Error(data.error);
   return data.data;
 }
 
 export async function cancelTraining(jobId: string) {
-  await fetch(`${API_BASE}/forge/training/${jobId}/cancel`, { method: 'POST' });
+  try {
+    await fetch(`${API_BASE}/forge/training/${jobId}/cancel`, { method: 'POST' });
+  } catch {
+    // Best effort
+  }
 }
 
 export function subscribeToTraining(
@@ -130,7 +182,12 @@ export function subscribeToTraining(
 }
 
 export async function fetchTrainableModels(): Promise<string[]> {
-  const res = await fetch(`${API_BASE}/forge/trainable-models`);
-  const data = await res.json();
-  return data.data || [];
+  try {
+    const res = await fetch(`${API_BASE}/forge/trainable-models`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.data || [];
+  } catch {
+    return [];
+  }
 }

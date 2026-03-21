@@ -1,23 +1,20 @@
-# ═══════════════════════════════════════════════════════
-# AI MODEL FORGE — Render.com Deployment Configuration
-# ═══════════════════════════════════════════════════════
-# Deploy: connect your GitHub repo to Render, it reads this file.
-
 services:
   # ── Backend API ─────────────────────────────────────
   - type: web
-    name: modelforge-api
+    name: ai-model-creator-api
     runtime: node
     region: oregon
     plan: free
     rootDir: server
-    buildCommand: npm install && npx tsc
-    startCommand: node dist/index.js
+    buildCommand: npm install
+    startCommand: npx tsx src/index.ts
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: "3001"
+        value: "10000"
+      - key: CORS_ORIGIN
+        value: https://ai-model-creator-a-m-c.onrender.com
       - key: OPENROUTER_API_KEY
         sync: false
       - key: REPLICATE_API_TOKEN
@@ -39,7 +36,7 @@ services:
 
   # ── Frontend Static Site ────────────────────────────
   - type: web
-    name: modelforge
+    name: ai-model-creator-a-m-c
     runtime: static
     region: oregon
     plan: free
@@ -47,14 +44,7 @@ services:
     staticPublishPath: dist
     envVars:
       - key: VITE_API_URL
-        value: https://modelforge-api.onrender.com/api
-    headers:
-      - path: /assets/*
-        name: Cache-Control
-        value: public, max-age=31536000, immutable
-      - path: /*
-        name: Cache-Control
-        value: public, max-age=3600
+        value: https://ai-model-creator-api.onrender.com/api
     routes:
       - type: rewrite
         source: /*

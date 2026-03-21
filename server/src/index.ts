@@ -16,15 +16,29 @@ const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
 // ── CORS ─────────────────────────────────────────────────────
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:3000',
+  'capacitor://localhost',
+  'http://localhost',
+  // Add all your Render domains here
+  process.env.CORS_ORIGIN,
+].filter(Boolean) as string[];
+
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:3000',
-    'https://modelforge.onrender.com',
-    'capacitor://localhost',
-    'http://localhost',
-  ],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Allow any .onrender.com domain
+    if (origin.endsWith('.onrender.com')) return callback(null, true);
+    
+    // Allow listed origins
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    
+    callback(null, true); // Allow all in case of other deployments
+  },
   credentials: true,
 }));
 
