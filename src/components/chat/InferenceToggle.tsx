@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useSettingsStore } from '@/stores/settingsStore';
-import { checkOllamaStatus } from '@/services/api';
+import { checkOllamaStatus } from '@/services/forgeApi';
 
 export default function InferenceToggle() {
   const {
