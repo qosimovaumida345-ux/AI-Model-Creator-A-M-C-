@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useSettingsStore } from '@/stores/settingsStore';
-import { checkOllamaStatus } from '@/services/forgeApi';
+import { checkOllamaStatus } from '@/services/api';
 
 export default function InferenceToggle() {
   const {
@@ -12,7 +12,6 @@ export default function InferenceToggle() {
     setOllamaStatus,
   } = useSettingsStore();
 
-  // Check Ollama on mount and periodically
   useEffect(() => {
     const check = async () => {
       const status = await checkOllamaStatus();
@@ -23,9 +22,12 @@ export default function InferenceToggle() {
     return () => clearInterval(interval);
   }, [setOllamaStatus]);
 
-  const effectiveMode = inferenceMode === 'auto'
-    ? (isOnline ? 'online' : 'offline')
-    : inferenceMode;
+  const effectiveMode =
+    inferenceMode === 'auto'
+      ? isOnline
+        ? 'online'
+        : 'offline'
+      : inferenceMode;
 
   const modes: Array<{ key: 'auto' | 'online' | 'offline'; label: string }> = [
     { key: 'auto', label: 'Auto' },
@@ -35,7 +37,6 @@ export default function InferenceToggle() {
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Mode selector */}
       <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1">
         {modes.map((mode) => (
           <button
@@ -56,7 +57,6 @@ export default function InferenceToggle() {
         ))}
       </div>
 
-      {/* Status indicators */}
       <div className="flex items-center gap-3 text-[10px] text-white/40 px-1">
         <span className="flex items-center gap-1">
           <span

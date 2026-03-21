@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { v4 as uuid } from 'uuid';
 import type { ChatSession, ChatMessage, ChatSettings } from '@/types';
 import { DEFAULT_CHAT_SETTINGS } from '@/types';
-import * as api from '@/services/forgeApi';
+import * as api from '@/services/api';
 import { useSettingsStore } from './settingsStore';
 
 interface ChatState {
@@ -77,7 +77,8 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     }
   },
 
-  setActiveSession: (id: string | null) => set({ activeSessionId: id, error: null, streamingContent: '' }),
+  setActiveSession: (id: string | null) =>
+    set({ activeSessionId: id, error: null, streamingContent: '' }),
 
   deleteSession: async (id: string) => {
     try {
@@ -108,6 +109,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     };
 
     const updatedMessages = [...session.messages, userMessage];
+
     set((s) => ({
       sessions: s.sessions.map((sess) =>
         sess.id === session.id
