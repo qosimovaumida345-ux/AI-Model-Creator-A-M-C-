@@ -579,3 +579,27 @@ export const CATEGORY_INFO: Record<ModelCategory, { label: string; color: string
   'video':           { label: 'Video',           color: '#F87171', icon: 'film' },
   'embedding':       { label: 'Embedding',       color: '#2DD4BF', icon: 'database' },
 };
+
+// Add these at the very bottom of src/types/index.ts
+
+export const CATEGORY_COLORS: Record<ModelCategory, string> = {
+  'text-generation': '#00D4FF',
+  'code': '#22C55E',
+  'image-generation': '#F472B6',
+  'vision': '#A78BFA',
+  'multimodal': '#FB923C',
+  'audio': '#FACC15',
+  'video': '#F87171',
+  'embedding': '#2DD4BF',
+};
+
+export const CATEGORY_LABELS: Record<ModelCategory, string> = {
+  'text-generation': 'Text Generation',
+  'code': 'Code',
+  'image-generation': 'Image Generation',
+  'vision': 'Vision',
+  'multimodal': 'Multimodal',
+  'audio': 'Audio',
+  'video': 'Video',
+  'embedding': 'Embedding',
+};

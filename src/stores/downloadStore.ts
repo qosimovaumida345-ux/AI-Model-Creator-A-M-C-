@@ -6,7 +6,13 @@ import type { DownloadTask } from '@/types';
 interface DownloadState {
   tasks: DownloadTask[];
   maxConcurrent: number;
-  addDownload: (modelId: string, modelName: string, url: string, fileName: string, totalSize: number) => string;
+  addDownload: (
+    modelId: string,
+    modelName: string,
+    url: string,
+    fileName: string,
+    totalSize: number
+  ) => string;
   updateTask: (id: string, patch: Partial<DownloadTask>) => void;
   removeTask: (id: string) => void;
   pauseTask: (id: string) => void;
@@ -41,7 +47,6 @@ export const useDownloadStore = create<DownloadState>()(
         };
         set((s) => ({ tasks: [...s.tasks, task] }));
 
-        // Start download via backend
         startDownload(id, url, fileName, (update) => {
           get().updateTask(id, update);
         });
@@ -60,7 +65,9 @@ export const useDownloadStore = create<DownloadState>()(
       pauseTask: (id) =>
         set((s) => ({
           tasks: s.tasks.map((t) =>
-            t.id === id && t.status === 'downloading' ? { ...t, status: 'paused' as const } : t
+            t.id === id && t.status === 'downloading'
+              ? { ...t, status: 'paused' as const }
+              : t
           ),
         })),
 
@@ -97,19 +104,20 @@ export const useDownloadStore = create<DownloadState>()(
   )
 );
 
-// Actual download logic — uses backend proxy for CORS
 async function startDownload(
-  taskId: string,
+  _taskId: string,
   url: string,
   fileName: string,
   onUpdate: (patch: Partial<DownloadTask>) => void
 ) {
-  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+  const apiBase =
+    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) ||
+    'http://localhost:3001/api';
 
   try {
     onUpdate({ status: 'downloading' });
 
-    const response = await fetch(`${API_BASE}/install/proxy-download`, {
+    const response = await fetch(`${apiBase}/install/proxy-download`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url, fileName }),
@@ -122,7 +130,10 @@ async function startDownload(
     const reader = response.body?.getReader();
     if (!reader) throw new Error('No response body');
 
-    const contentLength = parseInt(response.headers.get('content-length') || '0', 10);
+    const contentLength = parseInt(
+      response.headers.get('content-length') || '0',
+      10
+    );
     let downloaded = 0;
     const chunks: Uint8Array[] = [];
     let lastTime = Date.now();
@@ -139,7 +150,10 @@ async function startDownload(
       const elapsed = (now - lastTime) / 1000;
       if (elapsed >= 0.5) {
         const speed = (downloaded - lastBytes) / elapsed;
-        const progress = contentLength > 0 ? Math.round((downloaded / contentLength) * 100) : 0;
+        const progress =
+          contentLength > 0
+            ? Math.round((downloaded / contentLength) * 100)
+            : 0;
         onUpdate({
           downloadedSize: downloaded,
           progress,
@@ -151,10 +165,17 @@ async function startDownload(
       }
     }
 
-    // In Electron, we'd save to filesystem
-    // In browser, trigger download
+    // In Electron, we'd save to filesystem directly
+    // In browser, trigger a download via blob
     if (typeof window !== 'undefined' && !(window as any).electron) {
-      const blob = new Blob(chunks);
+      const totalLength = chunks.reduce((acc, c) => acc + c.length, 0);
+      const combined = new Uint8Array(totalLength);
+      let offset = 0;
+      for (const chunk of chunks) {
+        combined.set(chunk, offset);
+        offset += chunk.length;
+      }
+      const blob = new Blob([combined.buffer]);
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = fileName;

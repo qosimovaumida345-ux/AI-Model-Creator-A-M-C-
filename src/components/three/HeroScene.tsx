@@ -1,180 +1,205 @@
-import { Suspense, useRef, useMemo } from 'react';
+import { useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { Float, MeshDistortMaterial, Stars, Sphere } from '@react-three/drei';
+import { Float, Sphere, MeshDistortMaterial } from '@react-three/drei';
 import * as THREE from 'three';
 
-const PROVIDER_COLORS = [
-  '#00D4FF', '#9D4EDD', '#10A37F', '#FF6B9D', '#F59E0B',
-  '#4285F4', '#0668E1', '#FF7000', '#76B900', '#FFD21E',
-  '#D4A574', '#8B5CF6', '#06B6D4', '#EF4444', '#10B981',
-];
-
-interface SphereData {
-  position: [number, number, number];
-  color: string;
-  scale: number;
-  speed: number;
-  distort: number;
-}
-
-function AnimatedSphere({ data }: { data: SphereData }) {
-  const meshRef = useRef<THREE.Mesh>(null);
+function FloatingOrbs() {
+  const groupRef = useRef<THREE.Group>(null);
 
   useFrame((state) => {
-    if (!meshRef.current) return;
-    const t = state.clock.elapsedTime * 0.3;
-    meshRef.current.position.y =
-      data.position[1] + Math.sin(t * data.speed) * 0.5;
-  });
-
-  return (
-    <Float speed={data.speed} rotationIntensity={0.8} floatIntensity={1.5}>
-      <mesh ref={meshRef} position={data.position} scale={data.scale}>
-        <sphereGeometry args={[1, 64, 64]} />
-        <MeshDistortMaterial
-          color={data.color}
-          distort={data.distort}
-          speed={2.5}
-          roughness={0.15}
-          metalness={0.85}
-          emissive={data.color}
-          emissiveIntensity={0.15}
-          transparent
-          opacity={0.85}
-        />
-      </mesh>
-    </Float>
-  );
-}
-
-function FloatingSpheres() {
-  const spheres = useMemo<SphereData[]>(
-    () =>
-      Array.from({ length: 18 }, (_, i) => ({
-        position: [
-          (Math.random() - 0.5) * 14,
-          (Math.random() - 0.5) * 10,
-          (Math.random() - 0.5) * 10 - 2,
-        ] as [number, number, number],
-        color: PROVIDER_COLORS[i % PROVIDER_COLORS.length],
-        scale: 0.2 + Math.random() * 0.6,
-        speed: 0.5 + Math.random() * 2,
-        distort: 0.2 + Math.random() * 0.4,
-      })),
-    []
-  );
-
-  return (
-    <>
-      {spheres.map((s, i) => (
-        <AnimatedSphere key={i} data={s} />
-      ))}
-    </>
-  );
-}
-
-function NeuralLinks() {
-  const linesRef = useRef<THREE.Group>(null);
-
-  const points = useMemo(() => {
-    const pts: [number, number, number][] = [];
-    for (let i = 0; i < 30; i++) {
-      pts.push([
-        (Math.random() - 0.5) * 16,
-        (Math.random() - 0.5) * 12,
-        (Math.random() - 0.5) * 8 - 3,
-      ]);
-    }
-    return pts;
-  }, []);
-
-  const lineGeometries = useMemo(() => {
-    const geos: THREE.BufferGeometry[] = [];
-    for (let i = 0; i < points.length; i++) {
-      for (let j = i + 1; j < points.length; j++) {
-        const dist = Math.sqrt(
-          (points[i][0] - points[j][0]) ** 2 +
-          (points[i][1] - points[j][1]) ** 2 +
-          (points[i][2] - points[j][2]) ** 2
-        );
-        if (dist < 5) {
-          const geo = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(...points[i]),
-            new THREE.Vector3(...points[j]),
-          ]);
-          geos.push(geo);
-        }
-      }
-    }
-    return geos;
-  }, [points]);
-
-  useFrame((state) => {
-    if (linesRef.current) {
-      linesRef.current.rotation.y = state.clock.elapsedTime * 0.02;
+    if (groupRef.current) {
+      groupRef.current.rotation.y = state.clock.elapsedTime * 0.1;
+      groupRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.05) * 0.1;
     }
   });
 
+  const orbs = Array.from({ length: 12 }, (_, i) => {
+    const angle = (i / 12) * Math.PI * 2;
+    const radius = 2.5 + Math.sin(i * 1.5) * 1;
+    const y = Math.sin(i * 0.8) * 1.5;
+    return {
+      position: [
+        Math.cos(angle) * radius,
+        y,
+        Math.sin(angle) * radius,
+      ] as [number, number, number],
+      color: i % 3 === 0 ? '#00D4FF' : i % 3 === 1 ? '#9D4EDD' : '#F472B6',
+      scale: 0.15 + Math.random() * 0.25,
+      speed: 1 + Math.random() * 2,
+      distort: 0.2 + Math.random() * 0.3,
+    };
+  });
+
   return (
-    <group ref={linesRef}>
-      {lineGeometries.map((geo, i) => (
-        <line key={i} geometry={geo}>
-          <lineBasicMaterial color="#00D4FF" transparent opacity={0.06} />
-        </line>
+    <group ref={groupRef}>
+      {orbs.map((orb, i) => (
+        <Float
+          key={i}
+          speed={orb.speed}
+          rotationIntensity={0.3}
+          floatIntensity={0.5}
+        >
+          <Sphere args={[orb.scale, 32, 32]} position={orb.position}>
+            <MeshDistortMaterial
+              color={orb.color}
+              transparent
+              opacity={0.5}
+              distort={orb.distort}
+              speed={2}
+              roughness={0.2}
+              metalness={0.8}
+            />
+          </Sphere>
+        </Float>
       ))}
-      {points.map((p, i) => (
-        <mesh key={`node-${i}`} position={p}>
-          <sphereGeometry args={[0.04, 8, 8]} />
-          <meshBasicMaterial color="#00D4FF" transparent opacity={0.3} />
-        </mesh>
-      ))}
+
+      {/* Center orb — main focal point */}
+      <Float speed={0.8} rotationIntensity={0.5} floatIntensity={0.3}>
+        <Sphere args={[0.7, 64, 64]}>
+          <MeshDistortMaterial
+            color="#00D4FF"
+            transparent
+            opacity={0.25}
+            distort={0.4}
+            speed={3}
+            roughness={0.1}
+            metalness={0.9}
+          />
+        </Sphere>
+      </Float>
+
+      {/* Inner ring */}
+      <Float speed={1.2} rotationIntensity={0.2} floatIntensity={0.4}>
+        <Sphere args={[1.2, 64, 64]}>
+          <MeshDistortMaterial
+            color="#9D4EDD"
+            transparent
+            opacity={0.08}
+            distort={0.2}
+            speed={1.5}
+            roughness={0.3}
+            metalness={0.7}
+            wireframe
+          />
+        </Sphere>
+      </Float>
+
+      {/* Outer shell */}
+      <Float speed={0.5} rotationIntensity={0.1} floatIntensity={0.2}>
+        <Sphere args={[3.5, 48, 48]}>
+          <MeshDistortMaterial
+            color="#00D4FF"
+            transparent
+            opacity={0.03}
+            distort={0.1}
+            speed={1}
+            wireframe
+          />
+        </Sphere>
+      </Float>
     </group>
   );
 }
 
-function CentralGlow() {
-  const meshRef = useRef<THREE.Mesh>(null);
+function Particles() {
+  const particlesRef = useRef<THREE.Points>(null);
+  const count = 200;
+
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+
+  for (let i = 0; i < count; i++) {
+    const i3 = i * 3;
+    const radius = 4 + Math.random() * 6;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+
+    positions[i3] = radius * Math.sin(phi) * Math.cos(theta);
+    positions[i3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+    positions[i3 + 2] = radius * Math.cos(phi);
+
+    // Cyan or purple tint
+    if (Math.random() > 0.5) {
+      colors[i3] = 0;
+      colors[i3 + 1] = 0.83;
+      colors[i3 + 2] = 1;
+    } else {
+      colors[i3] = 0.616;
+      colors[i3 + 1] = 0.306;
+      colors[i3 + 2] = 0.867;
+    }
+  }
 
   useFrame((state) => {
-    if (meshRef.current) {
-      const s = 1 + Math.sin(state.clock.elapsedTime * 0.5) * 0.1;
-      meshRef.current.scale.setScalar(s);
+    if (particlesRef.current) {
+      particlesRef.current.rotation.y = state.clock.elapsedTime * 0.02;
+      particlesRef.current.rotation.x = state.clock.elapsedTime * 0.01;
     }
   });
 
   return (
-    <mesh ref={meshRef} position={[0, 0, -5]}>
-      <sphereGeometry args={[3, 32, 32]} />
-      <meshBasicMaterial color="#9D4EDD" transparent opacity={0.03} />
-    </mesh>
+    <points ref={particlesRef}>
+      <bufferGeometry>
+        <bufferAttribute
+          attach="attributes-position"
+          count={count}
+          array={positions}
+          itemSize={3}
+        />
+        <bufferAttribute
+          attach="attributes-color"
+          count={count}
+          array={colors}
+          itemSize={3}
+        />
+      </bufferGeometry>
+      <pointsMaterial
+        size={0.03}
+        vertexColors
+        transparent
+        opacity={0.6}
+        sizeAttenuation
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+      />
+    </points>
+  );
+}
+
+function Lights() {
+  return (
+    <>
+      <ambientLight intensity={0.15} />
+      <pointLight position={[10, 10, 10]} intensity={0.5} color="#00D4FF" />
+      <pointLight position={[-10, -5, -10]} intensity={0.3} color="#9D4EDD" />
+      <pointLight position={[5, -10, 5]} intensity={0.2} color="#F472B6" />
+      <spotLight
+        position={[0, 15, 0]}
+        angle={0.5}
+        penumbra={1}
+        intensity={0.3}
+        color="#00D4FF"
+      />
+    </>
   );
 }
 
 export default function HeroScene() {
   return (
-    <div className="absolute inset-0">
+    <div className="absolute inset-0 -z-10 opacity-80">
       <Canvas
-        camera={{ position: [0, 0, 10], fov: 55 }}
+        camera={{ position: [0, 0, 6], fov: 50 }}
         dpr={[1, 1.5]}
-        gl={{ antialias: true, alpha: true }}
+        gl={{
+          antialias: true,
+          alpha: true,
+          powerPreference: 'high-performance',
+        }}
+        style={{ background: 'transparent' }}
       >
-        <Suspense fallback={null}>
-          <ambientLight intensity={0.4} />
-          <pointLight position={[10, 10, 10]} intensity={0.8} color="#00D4FF" />
-          <pointLight position={[-10, -5, 5]} intensity={0.5} color="#9D4EDD" />
-          <Stars
-            radius={80}
-            depth={60}
-            count={3000}
-            factor={3}
-            saturation={0}
-            fade
-            speed={0.5}
-          />
-          <FloatingSpheres />
-          <NeuralLinks />
-          <CentralGlow />
-        </Suspense>
+        <Lights />
+        <FloatingOrbs />
+        <Particles />
       </Canvas>
     </div>
   );

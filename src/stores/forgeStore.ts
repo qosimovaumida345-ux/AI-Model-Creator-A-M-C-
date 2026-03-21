@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ForgeConfig } from '@/types';
 import { DEFAULT_FORGE_CONFIG } from '@/types';
-import * as forgeApi from '@/services/forgeApi';
+import * as forgeApi from '@/services/api';
 
 interface Dataset {
   id: string;
