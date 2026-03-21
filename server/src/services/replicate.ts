@@ -1,20 +1,12 @@
-// Real Replicate API integration for fine-tuning LLMs
 const REPLICATE_BASE = 'https://api.replicate.com/v1';
 
-// ── Model → Replicate training version mapping ──────────────
-// These are real Replicate model owners/versions for LoRA training
 const TRAINING_MAP: Record<string, { owner: string; model: string; version: string }> = {
-  'llama-2-7b':     { owner: 'meta', model: 'llama-2-7b', version: 'ac944f2e49c55c7e965fc3d93ad9a7d9d947866d6793fb849dd6b4747d0c061c' },
-  'llama-2-13b':    { owner: 'meta', model: 'llama-2-13b', version: 'df7690f1994d94e96ad9d568eac121aecf227687' },
-  'llama-31-8b':    { owner: 'meta', model: 'meta-llama-3.1-8b-instruct', version: 'a8b05e9ce30523b8ae435a1e9e2c9a9b8f4a9b68' },
-  'mistral-7b-v03': { owner: 'mistralai', model: 'mistral-7b-v0.1', version: 'ac882bab7c24af40b0b820a305e5a63e8c02b487' },
-  'gemma-2-2b':     { owner: 'google', model: 'gemma-2b', version: 'dff94eaf770e1fc211e425a50b51baa8e4cac6c39' },
-  'gemma-7b':       { owner: 'google', model: 'gemma-7b', version: '2790a695e5dcae15506138cc4718d1106d0d475e' },
-  'phi-3-mini':     { owner: 'microsoft', model: 'phi-3-mini-4k-instruct', version: 'test' },
-  'qwen25-7b':      { owner: 'qwen', model: 'qwen-2.5-7b', version: 'test' },
-  'codellama-7b':   { owner: 'meta', model: 'codellama-7b', version: 'test' },
-  'llama-3-8b':     { owner: 'meta', model: 'meta-llama-3-8b', version: 'test' },
-  'tinyllama':      { owner: 'tinyllama', model: 'tinyllama-1.1b', version: 'test' },
+  'llama-2-7b': { owner: 'meta', model: 'llama-2-7b', version: '' },
+  'llama-2-13b': { owner: 'meta', model: 'llama-2-13b', version: '' },
+  'llama-31-8b': { owner: 'meta', model: 'meta-llama-3.1-8b-instruct', version: '' },
+  'mistral-7b-v03': { owner: 'mistralai', model: 'mistral-7b-v0.1', version: '' },
+  'gemma-2-2b': { owner: 'google', model: 'gemma-2b', version: '' },
+  'gemma-7b': { owner: 'google', model: 'gemma-7b', version: '' },
 };
 
 export function getTrainableModels(): string[] {
@@ -32,40 +24,11 @@ function getApiKey(): string {
   return key;
 }
 
-// ── Upload file to Replicate ─────────────────────────────────
-export async function uploadFileToReplicate(filePath: string, fileName: string): Promise<string> {
-  const fs = await import('fs');
-  const FormData = (await import('formdata-node')).FormData;
-  const { fileFromPath } = await import('formdata-node/file-from-path');
-
-  const formData = new FormData();
-  const file = await fileFromPath(filePath, fileName);
-  formData.append('content', file);
-
-  const response = await fetch(`${REPLICATE_BASE}/files`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${getApiKey()}`,
-    },
-    body: formData as unknown as BodyInit,
-  });
-
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Replicate file upload failed: ${response.status} ${err}`);
-  }
-
-  const data = await response.json();
-  return data.urls.get;
-}
-
-// Alternative: serve file as a data URL for JSONL content
 export function createDataUrl(content: string): string {
   const base64 = Buffer.from(content).toString('base64');
   return `data:application/jsonl;base64,${base64}`;
 }
 
-// ── Create training ──────────────────────────────────────────
 interface TrainingInput {
   modelId: string;
   datasetUrl: string;
@@ -102,32 +65,17 @@ export interface ReplicateTraining {
 export async function createTraining(input: TrainingInput): Promise<ReplicateTraining> {
   const baseId = input.modelId.replace(/-q\d[_-]k[_-][msla]$/, '').replace(/-q\d[-_]\d$/, '');
   const modelInfo = TRAINING_MAP[baseId];
+
   if (!modelInfo) {
     throw new Error(`Model ${input.modelId} is not available for training on Replicate`);
   }
 
+  if (!modelInfo.version) {
+    throw new Error(`Replicate training is not configured for model ${input.modelId}`);
+  }
+
   const replicateUsername = process.env.REPLICATE_USERNAME || 'modelforge';
   const destination = `${replicateUsername}/${input.destinationName}`;
-
-  // Try to create the destination model first (may already exist)
-  try {
-    await fetch(`${REPLICATE_BASE}/models`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${getApiKey()}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        owner: replicateUsername,
-        name: input.destinationName,
-        visibility: 'private',
-        hardware: 'gpu-t4-nano',
-        description: `Fine-tuned ${input.modelId} via Model Forge`,
-      }),
-    });
-  } catch {
-    // Model may already exist, that's fine
-  }
 
   const trainingInput: Record<string, unknown> = {
     train_data: input.datasetUrl,
@@ -169,7 +117,6 @@ export async function createTraining(input: TrainingInput): Promise<ReplicateTra
   return await response.json();
 }
 
-// ── Get training status ──────────────────────────────────────
 export async function getTrainingStatus(trainingId: string): Promise<ReplicateTraining> {
   const response = await fetch(`${REPLICATE_BASE}/trainings/${trainingId}`, {
     headers: { Authorization: `Bearer ${getApiKey()}` },
@@ -183,7 +130,6 @@ export async function getTrainingStatus(trainingId: string): Promise<ReplicateTr
   return await response.json();
 }
 
-// ── Cancel training ──────────────────────────────────────────
 export async function cancelTraining(trainingId: string): Promise<void> {
   const response = await fetch(`${REPLICATE_BASE}/trainings/${trainingId}/cancel`, {
     method: 'POST',
@@ -196,7 +142,6 @@ export async function cancelTraining(trainingId: string): Promise<void> {
   }
 }
 
-// ── Parse training logs for metrics ──────────────────────────
 export interface ParsedMetrics {
   steps: Array<{
     step: number;
@@ -226,7 +171,6 @@ export function parseTrainingLogs(logs: string, fromIndex: number = 0): { metric
     const line = lines[i];
     newIndex = i + 1;
 
-    // Pattern: {"loss": 2.345, "learning_rate": 0.0002, "epoch": 0.5, "step": 10}
     const jsonMatch = line.match(/\{.*"loss".*\}/);
     if (jsonMatch) {
       try {
@@ -243,11 +187,10 @@ export function parseTrainingLogs(logs: string, fromIndex: number = 0): { metric
             epoch: currentEpoch,
           });
         }
-      } catch { /* skip unparseable */ }
+      } catch {}
       continue;
     }
 
-    // Pattern: Step 10/100: loss=2.345
     const stepMatch = line.match(/[Ss]tep\s+(\d+)\/(\d+).*(?:loss|Loss)[=:\s]+([0-9.]+)/);
     if (stepMatch) {
       currentStep = parseInt(stepMatch[1]);
@@ -257,7 +200,6 @@ export function parseTrainingLogs(logs: string, fromIndex: number = 0): { metric
       continue;
     }
 
-    // Pattern: loss=2.345 or loss: 2.345
     const lossMatch = line.match(/(?:loss|train_loss)[=:\s]+([0-9.]+)/i);
     if (lossMatch) {
       currentLoss = parseFloat(lossMatch[1]);
@@ -265,19 +207,16 @@ export function parseTrainingLogs(logs: string, fromIndex: number = 0): { metric
       steps.push({ step: currentStep, loss: currentLoss, learningRate: currentLr, epoch: currentEpoch });
     }
 
-    // Learning rate
     const lrMatch = line.match(/(?:learning_rate|lr)[=:\s]+([0-9.e-]+)/i);
     if (lrMatch) {
       currentLr = parseFloat(lrMatch[1]);
     }
 
-    // Epoch
     const epochMatch = line.match(/[Ee]poch[=:\s]+([0-9.]+)/);
     if (epochMatch) {
       currentEpoch = parseFloat(epochMatch[1]);
     }
 
-    // Total steps
     const totalMatch = line.match(/(?:total|max).*steps?[=:\s]+(\d+)/i);
     if (totalMatch) {
       totalSteps = parseInt(totalMatch[1]);
