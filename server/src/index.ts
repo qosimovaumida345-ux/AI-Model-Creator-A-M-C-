@@ -1,4 +1,4 @@
-import express from 'express';
+\import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -10,41 +10,27 @@ import { installRouter } from './routes/install.js';
 import { syncRouter } from './routes/sync.js';
 import { exportRouter } from './routes/export.js';
 
-dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.env') });
+dotenv.config({
+  path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.env'),
+});
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
-// ── CORS ─────────────────────────────────────────────────────
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://localhost:3000',
-  'capacitor://localhost',
-  'http://localhost',
-  // Add all your Render domains here
-  process.env.CORS_ORIGIN,
-].filter(Boolean) as string[];
-
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, etc.)
-    if (!origin) return callback(null, true);
-    
-    // Allow any .onrender.com domain
-    if (origin.endsWith('.onrender.com')) return callback(null, true);
-    
-    // Allow listed origins
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    
-    callback(null, true); // Allow all in case of other deployments
-  },
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:3000',
+    'http://localhost',
+    'capacitor://localhost',
+    'https://ai-model-creator-a-m-c.onrender.com',
+  ],
   credentials: true,
 }));
 
 app.use(express.json({ limit: '100mb' }));
 
-// ── Request logging in dev ───────────────────────────────────
 if (process.env.NODE_ENV !== 'production') {
   app.use((req, _, next) => {
     if (!req.path.includes('/events') && !req.path.includes('/health')) {
@@ -54,7 +40,6 @@ if (process.env.NODE_ENV !== 'production') {
   });
 }
 
-// ── Routes ───────────────────────────────────────────────────
 app.use('/api', healthRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/forge', forgeRouter);
@@ -62,7 +47,14 @@ app.use('/api/install', installRouter);
 app.use('/api/sync', syncRouter);
 app.use('/api/export', exportRouter);
 
-// ── API 404 handler ──────────────────────────────────────────
+app.get('/', (_req, res) => {
+  res.json({
+    success: true,
+    message: 'AI Model Creator API is running',
+    health: '/api/health',
+  });
+});
+
 app.all('/api/*', (req, res) => {
   res.status(404).json({
     success: false,
@@ -70,15 +62,6 @@ app.all('/api/*', (req, res) => {
   });
 });
 
-// ── Serve frontend in production ─────────────────────────────
-if (process.env.NODE_ENV === 'production') {
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  const clientPath = path.resolve(__dirname, '../../dist');
-  app.use(express.static(clientPath));
-  app.get('*', (_, res) => res.sendFile(path.join(clientPath, 'index.html')));
-}
-
-// ── Global error handler ─────────────────────────────────────
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Unhandled error:', err);
   res.status(500).json({
@@ -89,19 +72,8 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   });
 });
 
-// ── Start ────────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`
-╔══════════════════════════════════════════════╗
-║          AI MODEL FORGE  v1.0.0              ║
-╠══════════════════════════════════════════════╣
-║  Server:     http://localhost:${PORT}            ║
-║  OpenRouter: ${process.env.OPENROUTER_API_KEY ? '✓ configured' : '✗ not set  '}                  ║
-║  Replicate:  ${process.env.REPLICATE_API_TOKEN ? '✓ configured' : '✗ not set  '}                  ║
-║  HF Token:   ${process.env.HF_TOKEN ? '✓ configured' : '✗ not set  '}                  ║
-║  Ollama:     ${(process.env.OLLAMA_HOST || 'http://localhost:11434').padEnd(30)}║
-╚══════════════════════════════════════════════╝
-`);
+  console.log(`Server running on port ${PORT}`);
 });
 
 export default app;
