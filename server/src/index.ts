@@ -1,4 +1,4 @@
-\import express from 'express';
+import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -32,7 +32,7 @@ app.use(cors({
 app.use(express.json({ limit: '100mb' }));
 
 if (process.env.NODE_ENV !== 'production') {
-  app.use((req, _, next) => {
+  app.use((req, _res, next) => {
     if (!req.path.includes('/events') && !req.path.includes('/health')) {
       console.log(`${req.method} ${req.path}`);
     }
