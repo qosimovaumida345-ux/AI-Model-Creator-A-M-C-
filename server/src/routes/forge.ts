@@ -267,7 +267,11 @@ forgeRouter.post('/train', async (req: Request, res: Response) => {
 
     trainingJobStore.create(trainingJob);
 
-    if (hasReplicateKey && trainable) {
+    // Check if the user manually selected 'cloud' in the frontend UI
+    const wantsCloud = config.hardwareProvider === 'cloud';
+
+    // Only use Replicate if it's selected, available, AND we have the key
+    if (wantsCloud && hasReplicateKey && trainable) {
       startReplicateTraining(jobId, modelId, baseModelId, dataset, config, modelName).catch(async (err) => {
         const message = err instanceof Error ? err.message : 'Replicate training failed';
         const currentJob = trainingJobStore.getById(jobId);
@@ -288,9 +292,9 @@ forgeRouter.post('/train', async (req: Request, res: Response) => {
         });
 
         forgedModelStore.update(modelId, { trainingStatus: 'training' });
-
         await startSimulatedTraining(jobId, modelId, config);
       });
+
     } else {
       startSimulatedTraining(jobId, modelId, config).catch(console.error);
     }
