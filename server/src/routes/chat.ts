@@ -24,7 +24,7 @@ try {
   isGroqAvailable = groq.isGroqAvailable;
   getGroqModelId = groq.getGroqModelId;
   streamGroqChat = groq.streamGroqChat;
-} catch {}
+} catch { }
 
 try {
   const cf = await import('../services/cloudflare.js');
@@ -32,13 +32,13 @@ try {
   getCloudflareModelId = cf.getCloudflareModelId;
   streamCloudflareChat = cf.streamCloudflareChat;
   chatCloudflare = cf.chatCloudflare;
-} catch {}
+} catch { }
 
 try {
   const google = await import('../services/google.js');
   streamGoogleChat = google.streamGoogleChat;
   getGoogleModelId = google.getGoogleModelId;
-} catch {}
+} catch { }
 
 export const chatRouter = Router();
 
@@ -226,14 +226,13 @@ chatRouter.post('/completions', async (req: Request, res: Response) => {
     // Bepul providerlarni birinchi sinaydi
     // ══════════════════════════════════════════════════════════
 
-    // 1. Google AI Studio (BEPUL)
-    if (streamGoogleChat && process.env.GOOGLE_AI_API_KEY && GEMINI_MODELS.has(actualModelId)) {
-      try {
-        const googleModel = getGoogleModelId(actualModelId);
-        await streamGoogleChat(googleModel, finalMessages, onChunk, onDone, onError);
-        return;
-      } catch {
-        // Keyingi providerga o'tadi
+    if (streamGroqChat && isGroqAvailable()) {
+      const groqModel = await getGroqModelId(actualModelId);
+      if (groqModel) {
+        try {
+          await streamGroqChat(groqModel, finalMessages, onChunk, onDone, onError);
+          return;
+        } catch { }
       }
     }
 
@@ -305,7 +304,7 @@ chatRouter.post('/completions', async (req: Request, res: Response) => {
       await streamOllamaChat(
         { model: actualModelId, messages: finalMessages, options: { temperature, top_p, num_predict: max_tokens }, stream: false },
         (chunk) => { fullText += chunk; },
-        () => {},
+        () => { },
         (err) => { throw new Error(err); }
       );
 
