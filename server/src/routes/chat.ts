@@ -5,13 +5,50 @@ import { streamOllamaChat, checkOllamaHealth, listOllamaModels } from '../servic
 import { sessionStore } from '../db/store.js';
 import { forgedModelStore } from '../db/forgeStore.js';
 
+// Free provider imports — har biri xavfsiz try/catch bilan
+let isGroqAvailable: () => boolean = () => false;
+let getGroqModelId: (id: string) => string | null = () => null;
+let streamGroqChat: any = null;
+
+let isCloudflareAvailable: () => boolean = () => false;
+let getCloudflareModelId: (id: string) => string | null = () => null;
+let streamCloudflareChat: any = null;
+let chatCloudflare: any = null;
+
+let streamGoogleChat: any = null;
+let getGoogleModelId: (id: string) => string = () => 'gemini-2.0-flash';
+
+// Xavfsiz import — agar fayl mavjud bo'lmasa xato bermaydi
+try {
+  const groq = await import('../services/groq.js');
+  isGroqAvailable = groq.isGroqAvailable;
+  getGroqModelId = groq.getGroqModelId;
+  streamGroqChat = groq.streamGroqChat;
+} catch {}
+
+try {
+  const cf = await import('../services/cloudflare.js');
+  isCloudflareAvailable = cf.isCloudflareAvailable;
+  getCloudflareModelId = cf.getCloudflareModelId;
+  streamCloudflareChat = cf.streamCloudflareChat;
+  chatCloudflare = cf.chatCloudflare;
+} catch {}
+
+try {
+  const google = await import('../services/google.js');
+  streamGoogleChat = google.streamGoogleChat;
+  getGoogleModelId = google.getGoogleModelId;
+} catch {}
+
 export const chatRouter = Router();
 
+// ── Gemini model IDs ─────────────────────────────────────────
+const GEMINI_MODELS = new Set([
+  'gemini-20-flash', 'gemini-15-pro', 'gemini-15-flash', 'gemini-ultra',
+]);
+
 // ── Helper: resolve model ID ─────────────────────────────────
-// If the model ID is a forged model UUID, return the base model ID
-// Otherwise return the model ID as-is (it's already an OpenRouter model)
 function resolveModelId(modelId: string): { actualModelId: string; systemPrompt: string | null } {
-  // Check if this is a forged model UUID
   const forgedModel = forgedModelStore.getById(modelId);
   if (forgedModel) {
     return {
@@ -19,8 +56,6 @@ function resolveModelId(modelId: string): { actualModelId: string; systemPrompt:
       systemPrompt: forgedModel.systemPrompt || null,
     };
   }
-
-  // Not a forged model, use as-is
   return { actualModelId: modelId, systemPrompt: null };
 }
 
@@ -96,7 +131,6 @@ chatRouter.post('/completions', async (req: Request, res: Response) => {
   // If this is a forged model, prepend its system prompt
   let finalMessages = [...messages];
   if (forgedSystemPrompt) {
-    // Check if system prompt already exists
     const hasSystem = finalMessages.some((m: { role: string }) => m.role === 'system');
     if (!hasSystem) {
       finalMessages = [
@@ -106,20 +140,21 @@ chatRouter.post('/completions', async (req: Request, res: Response) => {
     }
   }
 
+  // Block Ollama in production
+  if (provider === 'ollama' && process.env.NODE_ENV === 'production') {
+    return res.status(400).json({
+      success: false,
+      error: 'Offline (Ollama) mode is only available when running the app locally.',
+    });
+  }
+
   // Get API key from request header or env
   const apiKey =
     req.headers['x-openrouter-key'] as string ||
     process.env.OPENROUTER_API_KEY ||
     '';
 
-  if (provider === 'openrouter' && !apiKey) {
-    return res.status(400).json({
-      success: false,
-      error: 'No OpenRouter API key. Set OPENROUTER_API_KEY in .env or provide via settings.',
-    });
-  }
-
-  // Save user message to session if sessionId provided
+  // Save user message to session
   if (sessionId && messages.length > 0) {
     const lastMsg = messages[messages.length - 1];
     if (lastMsg.role === 'user') {
@@ -170,6 +205,7 @@ chatRouter.post('/completions', async (req: Request, res: Response) => {
       res.end();
     };
 
+    // ── Ollama (local only) ──────────────────────────────────
     if (provider === 'ollama') {
       await streamOllamaChat(
         {
@@ -182,24 +218,83 @@ chatRouter.post('/completions', async (req: Request, res: Response) => {
         onDone,
         onError
       );
-    } else {
-      await streamChatCompletion(
-        apiKey,
-        {
-          model: actualModelId,
-          messages: finalMessages,
-          temperature,
-          top_p,
-          max_tokens,
-          frequency_penalty,
-          presence_penalty,
-          stop,
-        },
-        onChunk,
-        onDone,
-        onError
-      );
+      return;
     }
+
+    // ══════════════════════════════════════════════════════════
+    // SMART FREE PROVIDER ROUTING
+    // Bepul providerlarni birinchi sinaydi
+    // ══════════════════════════════════════════════════════════
+
+    // 1. Google AI Studio (BEPUL)
+    if (streamGoogleChat && process.env.GOOGLE_AI_API_KEY && GEMINI_MODELS.has(actualModelId)) {
+      try {
+        const googleModel = getGoogleModelId(actualModelId);
+        await streamGoogleChat(googleModel, finalMessages, onChunk, onDone, onError);
+        return;
+      } catch {
+        // Keyingi providerga o'tadi
+      }
+    }
+
+    // 2. Groq (BEPUL, TEZKOR)
+    if (streamGroqChat && isGroqAvailable()) {
+      const groqModel = getGroqModelId(actualModelId);
+      if (groqModel) {
+        try {
+          await streamGroqChat(groqModel, finalMessages, onChunk, onDone, onError);
+          return;
+        } catch {
+          // Keyingi providerga o'tadi
+        }
+      }
+    }
+
+    // 3. Cloudflare Workers AI (BEPUL, kuniga 10K)
+    if (streamCloudflareChat && isCloudflareAvailable()) {
+      const cfModel = getCloudflareModelId(actualModelId);
+      if (cfModel) {
+        try {
+          await streamCloudflareChat(cfModel, finalMessages, onChunk, onDone, onError);
+          return;
+        } catch {
+          // OpenRouter ga o'tadi
+        }
+      }
+    }
+
+    // 4. Hech qanday key yo'q bo'lsa — Cloudflare default model
+    if (!apiKey) {
+      if (streamCloudflareChat && isCloudflareAvailable()) {
+        try {
+          await streamCloudflareChat('@cf/meta/llama-3.1-8b-instruct', finalMessages, onChunk, onDone, onError);
+          return;
+        } catch {
+          onError('API key yo\'q. Settings da OpenRouter API key kiriting yoki Cloudflare/Groq/Google AI sozlang.');
+          return;
+        }
+      }
+      onError('API key yo\'q. OPENROUTER_API_KEY environment variable ga kiriting yoki Settings orqali bering.');
+      return;
+    }
+
+    // 5. OpenRouter (bepul modellar birinchi, keyin pullik)
+    await streamChatCompletion(
+      apiKey,
+      {
+        model: actualModelId,
+        messages: finalMessages,
+        temperature,
+        top_p,
+        max_tokens,
+        frequency_penalty,
+        presence_penalty,
+        stop,
+      },
+      onChunk,
+      onDone,
+      onError
+    );
     return;
   }
 
@@ -229,6 +324,43 @@ chatRouter.post('/completions', async (req: Request, res: Response) => {
         data: {
           choices: [{ message: { role: 'assistant', content: fullText } }],
         },
+      });
+    }
+
+    // Non-streaming: Cloudflare sinab ko'rish
+    if (chatCloudflare && isCloudflareAvailable()) {
+      const cfModel = getCloudflareModelId(actualModelId);
+      if (cfModel) {
+        try {
+          const content = await chatCloudflare(cfModel, finalMessages);
+
+          if (sessionId) {
+            sessionStore.addMessage(sessionId, {
+              id: uuid(),
+              role: 'assistant',
+              content,
+              timestamp: new Date().toISOString(),
+              model: actualModelId,
+            });
+          }
+
+          return res.json({
+            success: true,
+            data: {
+              choices: [{ message: { role: 'assistant', content } }],
+            },
+          });
+        } catch {
+          // OpenRouter ga o'tadi
+        }
+      }
+    }
+
+    // Non-streaming: OpenRouter
+    if (!apiKey) {
+      return res.status(400).json({
+        success: false,
+        error: 'API key sozlanmagan.',
       });
     }
 
