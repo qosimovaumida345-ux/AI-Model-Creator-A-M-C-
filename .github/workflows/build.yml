@@ -25,41 +25,46 @@ jobs:
           node -e "
           const zlib = require('zlib');
           const fs = require('fs');
-          const w = 256, h = 256;
+          const w = 512, h = 512;
           const raw = Buffer.alloc((w * 4 + 1) * h);
           for (let y = 0; y < h; y++) {
             raw[y * (w * 4 + 1)] = 0;
             for (let x = 0; x < w; x++) {
               const i = y * (w * 4 + 1) + 1 + x * 4;
-              raw[i] = 0; raw[i+1] = 212; raw[i+2] = 255; raw[i+3] = 255;
+              const cx = w/2, cy = h/2, r = w/2;
+              const dist = Math.sqrt((x-cx)**2+(y-cy)**2);
+              if (dist < r) {
+                raw[i] = 0; raw[i+1] = 150; raw[i+2] = 255; raw[i+3] = 255;
+              } else {
+                raw[i] = 10; raw[i+1] = 10; raw[i+2] = 20; raw[i+3] = 255;
+              }
             }
           }
           const deflated = zlib.deflateSync(raw);
           function crc32(buf) {
-            let c = 0xFFFFFFFF;
             const table = new Uint32Array(256);
             for (let n = 0; n < 256; n++) {
               let v = n;
               for (let k = 0; k < 8; k++) v = v & 1 ? 0xEDB88320 ^ (v >>> 1) : v >>> 1;
               table[n] = v;
             }
+            let c = 0xFFFFFFFF;
             for (let i = 0; i < buf.length; i++) c = table[(c ^ buf[i]) & 0xFF] ^ (c >>> 8);
             return (c ^ 0xFFFFFFFF) >>> 0;
           }
           function chunk(type, data) {
             const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
             const t = Buffer.from(type);
-            const crcBuf = Buffer.concat([t, data]);
-            const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(crcBuf));
+            const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(Buffer.concat([t, data])));
             return Buffer.concat([len, t, data, crc]);
           }
           const sig = Buffer.from([137,80,78,71,13,10,26,10]);
           const ihdr = Buffer.alloc(13);
-          ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4);
-          ihdr[8] = 8; ihdr[9] = 6;
-          const png = Buffer.concat([sig, chunk('IHDR', ihdr), chunk('IDAT', deflated), chunk('IEND', Buffer.alloc(0))]);
+          ihdr.writeUInt32BE(w,0); ihdr.writeUInt32BE(h,4);
+          ihdr[8]=8; ihdr[9]=6;
+          const png = Buffer.concat([sig, chunk('IHDR',ihdr), chunk('IDAT',deflated), chunk('IEND',Buffer.alloc(0))]);
           fs.writeFileSync('build-resources/icon.png', png);
-          console.log('Icon created:', png.length, 'bytes');
+          console.log('Icon 512x512 created');
           "
 
       - name: Install root dependencies
@@ -103,41 +108,46 @@ jobs:
           node -e "
           const zlib = require('zlib');
           const fs = require('fs');
-          const w = 256, h = 256;
+          const w = 512, h = 512;
           const raw = Buffer.alloc((w * 4 + 1) * h);
           for (let y = 0; y < h; y++) {
             raw[y * (w * 4 + 1)] = 0;
             for (let x = 0; x < w; x++) {
               const i = y * (w * 4 + 1) + 1 + x * 4;
-              raw[i] = 0; raw[i+1] = 212; raw[i+2] = 255; raw[i+3] = 255;
+              const cx = w/2, cy = h/2, r = w/2;
+              const dist = Math.sqrt((x-cx)**2+(y-cy)**2);
+              if (dist < r) {
+                raw[i] = 0; raw[i+1] = 150; raw[i+2] = 255; raw[i+3] = 255;
+              } else {
+                raw[i] = 10; raw[i+1] = 10; raw[i+2] = 20; raw[i+3] = 255;
+              }
             }
           }
           const deflated = zlib.deflateSync(raw);
           function crc32(buf) {
-            let c = 0xFFFFFFFF;
             const table = new Uint32Array(256);
             for (let n = 0; n < 256; n++) {
               let v = n;
               for (let k = 0; k < 8; k++) v = v & 1 ? 0xEDB88320 ^ (v >>> 1) : v >>> 1;
               table[n] = v;
             }
+            let c = 0xFFFFFFFF;
             for (let i = 0; i < buf.length; i++) c = table[(c ^ buf[i]) & 0xFF] ^ (c >>> 8);
             return (c ^ 0xFFFFFFFF) >>> 0;
           }
           function chunk(type, data) {
             const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
             const t = Buffer.from(type);
-            const crcBuf = Buffer.concat([t, data]);
-            const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(crcBuf));
+            const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(Buffer.concat([t, data])));
             return Buffer.concat([len, t, data, crc]);
           }
           const sig = Buffer.from([137,80,78,71,13,10,26,10]);
           const ihdr = Buffer.alloc(13);
-          ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4);
-          ihdr[8] = 8; ihdr[9] = 6;
-          const png = Buffer.concat([sig, chunk('IHDR', ihdr), chunk('IDAT', deflated), chunk('IEND', Buffer.alloc(0))]);
+          ihdr.writeUInt32BE(w,0); ihdr.writeUInt32BE(h,4);
+          ihdr[8]=8; ihdr[9]=6;
+          const png = Buffer.concat([sig, chunk('IHDR',ihdr), chunk('IDAT',deflated), chunk('IEND',Buffer.alloc(0))]);
           fs.writeFileSync('build-resources/icon.png', png);
-          console.log('Icon created:', png.length, 'bytes');
+          console.log('Icon 512x512 created');
           "
 
       - name: Install root dependencies
@@ -180,41 +190,46 @@ jobs:
           node -e "
           const zlib = require('zlib');
           const fs = require('fs');
-          const w = 256, h = 256;
+          const w = 512, h = 512;
           const raw = Buffer.alloc((w * 4 + 1) * h);
           for (let y = 0; y < h; y++) {
             raw[y * (w * 4 + 1)] = 0;
             for (let x = 0; x < w; x++) {
               const i = y * (w * 4 + 1) + 1 + x * 4;
-              raw[i] = 0; raw[i+1] = 212; raw[i+2] = 255; raw[i+3] = 255;
+              const cx = w/2, cy = h/2, r = w/2;
+              const dist = Math.sqrt((x-cx)**2+(y-cy)**2);
+              if (dist < r) {
+                raw[i] = 0; raw[i+1] = 150; raw[i+2] = 255; raw[i+3] = 255;
+              } else {
+                raw[i] = 10; raw[i+1] = 10; raw[i+2] = 20; raw[i+3] = 255;
+              }
             }
           }
           const deflated = zlib.deflateSync(raw);
           function crc32(buf) {
-            let c = 0xFFFFFFFF;
             const table = new Uint32Array(256);
             for (let n = 0; n < 256; n++) {
               let v = n;
               for (let k = 0; k < 8; k++) v = v & 1 ? 0xEDB88320 ^ (v >>> 1) : v >>> 1;
               table[n] = v;
             }
+            let c = 0xFFFFFFFF;
             for (let i = 0; i < buf.length; i++) c = table[(c ^ buf[i]) & 0xFF] ^ (c >>> 8);
             return (c ^ 0xFFFFFFFF) >>> 0;
           }
           function chunk(type, data) {
             const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
             const t = Buffer.from(type);
-            const crcBuf = Buffer.concat([t, data]);
-            const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(crcBuf));
+            const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(Buffer.concat([t, data])));
             return Buffer.concat([len, t, data, crc]);
           }
           const sig = Buffer.from([137,80,78,71,13,10,26,10]);
           const ihdr = Buffer.alloc(13);
-          ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4);
-          ihdr[8] = 8; ihdr[9] = 6;
-          const png = Buffer.concat([sig, chunk('IHDR', ihdr), chunk('IDAT', deflated), chunk('IEND', Buffer.alloc(0))]);
+          ihdr.writeUInt32BE(w,0); ihdr.writeUInt32BE(h,4);
+          ihdr[8]=8; ihdr[9]=6;
+          const png = Buffer.concat([sig, chunk('IHDR',ihdr), chunk('IDAT',deflated), chunk('IEND',Buffer.alloc(0))]);
           fs.writeFileSync('build-resources/icon.png', png);
-          console.log('Icon created:', png.length, 'bytes');
+          console.log('Icon 512x512 created');
           "
 
       - name: Install root dependencies
@@ -264,12 +279,15 @@ jobs:
       - name: Build frontend
         run: npm run build
 
-      - name: Sync Capacitor Android
-        run: npx cap sync android
+      - name: Add and sync Capacitor Android
+        run: |
+          npx cap add android || true
+          npx cap sync android
 
       - name: Build debug APK
         run: |
           cd android
+          chmod +x gradlew
           ./gradlew assembleDebug
 
       - name: Copy APK
