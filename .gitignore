@@ -4,6 +4,7 @@ build/
 builds/
 server/dist/
 server/node_modules/
+electron/dist/
 
 *.exe
 *.dmg
@@ -14,3 +15,5 @@ server/node_modules/
 .env
 .env.local
 .DS_Store
+package-lock.json
+server/package-lock.json
