@@ -1,5 +1,19 @@
 import type { DeviceInfo, Platform, Architecture, GPUInfo } from '@/types';
 
+// ═══════════════════════════════════════════════════════════════
+// GitHub Releases URL — build qilganingizda shu yerga qo'ying
+// Hozircha null = "Coming Soon" ko'rsatadi
+// ═══════════════════════════════════════════════════════════════
+const GITHUB_RELEASES_BASE = 'https://github.com/qosimovaumida345-ux/AI-Model-Creator-A-M-C-/releases/latest/download';
+
+const INSTALLER_URLS: Record<string, string | null> = {
+  windows: null, // `${GITHUB_RELEASES_BASE}/ModelForge-Setup.exe` — build qilganingizda yoqing
+  macos: null,   // `${GITHUB_RELEASES_BASE}/ModelForge.dmg`
+  linux: null,   // `${GITHUB_RELEASES_BASE}/ModelForge.AppImage`
+  android: null, // `${GITHUB_RELEASES_BASE}/ModelForge.apk`
+  ios: null,     // `${GITHUB_RELEASES_BASE}/ModelForge.ipa`
+};
+
 export function detectDevice(): DeviceInfo {
   const ua = navigator.userAgent;
   const platform = detectPlatform(ua);
@@ -181,12 +195,16 @@ export function getHardwareAssessment(device: DeviceInfo) {
 export function getInstallerInfo(device: DeviceInfo) {
   const { platform, architecture } = device;
 
+  const url = INSTALLER_URLS[platform] || null;
+  const isAvailable = url !== null;
+
   switch (platform) {
     case 'windows':
       return {
         platform: 'windows' as const,
         architecture,
-        downloadUrl: '/api/install/download/windows',
+        downloadUrl: url,
+        isAvailable,
         fileName: 'ModelForge-Setup.exe',
         fileSize: 85_000_000,
         version: '1.0.0',
@@ -199,7 +217,8 @@ export function getInstallerInfo(device: DeviceInfo) {
       return {
         platform: 'macos' as const,
         architecture,
-        downloadUrl: '/api/install/download/macos',
+        downloadUrl: url,
+        isAvailable,
         fileName: 'ModelForge.dmg',
         fileSize: 90_000_000,
         version: '1.0.0',
@@ -212,7 +231,8 @@ export function getInstallerInfo(device: DeviceInfo) {
       return {
         platform: 'linux' as const,
         architecture,
-        downloadUrl: '/api/install/download/linux',
+        downloadUrl: url,
+        isAvailable,
         fileName: 'ModelForge.AppImage',
         fileSize: 80_000_000,
         version: '1.0.0',
@@ -225,7 +245,8 @@ export function getInstallerInfo(device: DeviceInfo) {
       return {
         platform: 'android' as const,
         architecture,
-        downloadUrl: '/api/install/download/android',
+        downloadUrl: url,
+        isAvailable,
         fileName: 'ModelForge.apk',
         fileSize: 45_000_000,
         version: '1.0.0',
@@ -238,14 +259,15 @@ export function getInstallerInfo(device: DeviceInfo) {
       return {
         platform: 'ios' as const,
         architecture: 'arm64' as const,
-        downloadUrl: '/api/install/download/ios',
+        downloadUrl: url,
+        isAvailable,
         fileName: 'ModelForge.ipa',
         fileSize: 50_000_000,
         version: '1.0.0',
         checksum: '',
         format: 'ipa' as const,
         bundledModels: [] as string[],
-        requirements: 'iOS 16+ — Requires sideloading via AltStore (no Apple Developer account)',
+        requirements: 'iOS 16+ — Requires sideloading via AltStore',
       };
     default:
       return null;

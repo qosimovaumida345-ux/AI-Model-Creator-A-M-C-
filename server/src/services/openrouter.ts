@@ -13,18 +13,52 @@ interface ChatRequest {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// MODEL MAP — every value is a VERIFIED OpenRouter model ID
+// FREE MODELS — ordered by quality (best first)
+// ═══════════════════════════════════════════════════════════════
+const FREE_FALLBACK_CHAIN = [
+  'qwen/qwen3-coder:free',
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'google/gemma-3-27b-it:free',
+  'google/gemma-3-12b-it:free',
+  'mistralai/mistral-small-3.1-24b-instruct:free',
+  'qwen/qwen3-4b:free',
+  'nvidia/nemotron-nano-9b-v2:free',
+  'z-ai/glm-4.5-air:free',
+  'google/gemma-3-4b-it:free',
+  'meta-llama/llama-3.2-3b-instruct:free',
+  'meta-llama/llama-3.2-1b-instruct',
+  'google/gemma-3n-e4b-it:free',
+  'google/gemma-3n-e2b-it:free',
+  'nvidia/nemotron-3-nano-30b-a3b:free',
+  'nvidia/nemotron-3-super-120b-a12b:free',
+  'nousresearch/hermes-3-llama-3.1-405b:free',
+  'qwen/qwen3-next-80b-a3b-instruct:free',
+  'stepfun/step-3.5-flash:free',
+  'arcee-ai/trinity-large-preview:free',
+  'arcee-ai/trinity-mini:free',
+  'openai/gpt-oss-120b:free',
+  'openai/gpt-oss-20b:free',
+  'liquid/lfm-2.5-1.2b-instruct:free',
+  'minimax/minimax-m2.5:free',
+  'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',
+];
+
+const FALLBACK_MODEL = FREE_FALLBACK_CHAIN[0];
+
+// ═══════════════════════════════════════════════════════════════
+// MODEL MAP — maps internal IDs to VERIFIED OpenRouter IDs
+// Prefers free models wherever possible
 // ═══════════════════════════════════════════════════════════════
 const MODEL_MAP: Record<string, string> = {
   // ── OpenAI ───────────────────────────────
-  'gpt-35-turbo':       'openai/gpt-3.5-turbo',
+  'gpt-35-turbo':       'openai/gpt-oss-20b:free',
   'gpt-4o':             'openai/gpt-4o',
   'gpt-4-turbo':        'openai/gpt-4-turbo',
   'gpt-4':              'openai/gpt-4',
   'o1':                 'openai/o1',
   'o1-mini':            'openai/o3-mini',
   'o3':                 'openai/o3',
-  'codex':              'openai/gpt-4o-mini',
+  'codex':              'qwen/qwen3-coder:free',
 
   // ── Anthropic ────────────────────────────
   'claude-35-sonnet':   'anthropic/claude-3.5-sonnet',
@@ -38,7 +72,7 @@ const MODEL_MAP: Record<string, string> = {
   'gemini-15-pro':      'google/gemini-2.5-pro',
   'gemini-15-flash':    'google/gemini-2.5-flash',
   'gemini-ultra':       'google/gemini-2.5-pro',
-  'gemma-2-27b':        'google/gemma-2-27b-it',
+  'gemma-2-27b':        'google/gemma-3-27b-it:free',
   'gemma-2-9b':         'google/gemma-2-9b-it',
   'gemma-2-2b':         'google/gemma-3-4b-it:free',
   'gemma-7b':           'google/gemma-3-12b-it:free',
@@ -48,21 +82,21 @@ const MODEL_MAP: Record<string, string> = {
   'paligemma':          'google/gemma-3-4b-it:free',
 
   // ── Meta LLaMA ───────────────────────────
-  'llama-31-405b':      'meta-llama/llama-3.1-405b',
-  'llama-31-70b':       'meta-llama/llama-3.1-70b-instruct',
+  'llama-31-405b':      'nousresearch/hermes-3-llama-3.1-405b:free',
+  'llama-31-70b':       'meta-llama/llama-3.3-70b-instruct:free',
   'llama-31-8b':        'meta-llama/llama-3.1-8b-instruct',
   'llama-32-90b-vision':'meta-llama/llama-3.2-11b-vision-instruct',
   'llama-32-11b-vision':'meta-llama/llama-3.2-11b-vision-instruct',
   'llama-32-3b':        'meta-llama/llama-3.2-3b-instruct:free',
   'llama-32-1b':        'meta-llama/llama-3.2-1b-instruct',
-  'llama-3-70b':        'meta-llama/llama-3-70b-instruct',
+  'llama-3-70b':        'meta-llama/llama-3.3-70b-instruct:free',
   'llama-3-8b':         'meta-llama/llama-3-8b-instruct',
   'llama-2-70b':        'meta-llama/llama-3.3-70b-instruct:free',
   'llama-2-13b':        'meta-llama/llama-3.2-3b-instruct:free',
   'llama-2-7b':         'meta-llama/llama-3.2-3b-instruct:free',
   'codellama-70b':      'meta-llama/llama-3.3-70b-instruct:free',
   'codellama-34b':      'meta-llama/llama-3.3-70b-instruct:free',
-  'codellama-7b':       'meta-llama/llama-3.1-8b-instruct',
+  'codellama-7b':       'qwen/qwen3-coder:free',
   'llama-guard-3':      'meta-llama/llama-guard-3-8b',
 
   // ── Mistral AI ───────────────────────────
@@ -70,7 +104,7 @@ const MODEL_MAP: Record<string, string> = {
   'mistral-nemo':       'mistralai/mistral-nemo',
   'mixtral-8x22b':      'mistralai/mixtral-8x22b-instruct',
   'mixtral-8x7b':       'mistralai/mixtral-8x7b-instruct',
-  'mistral-7b-v03':     'mistralai/mistral-7b-instruct-v0.1',
+  'mistral-7b-v03':     'mistralai/mistral-small-3.1-24b-instruct:free',
   'mistral-small':      'mistralai/mistral-small-3.1-24b-instruct:free',
   'codestral':          'mistralai/codestral-2508',
   'mistral-embed':      'mistralai/mistral-nemo',
@@ -101,12 +135,12 @@ const MODEL_MAP: Record<string, string> = {
   'qwen25-7b':          'qwen/qwen-2.5-7b-instruct',
   'qwen25-3b':          'qwen/qwen3-4b:free',
   'qwen25-1-5b':        'qwen/qwen3-4b:free',
-  'qwen25-coder':       'qwen/qwen-2.5-coder-32b-instruct',
+  'qwen25-coder':       'qwen/qwen3-coder:free',
   'qwen2-vl':           'qwen/qwen-2.5-vl-7b-instruct',
   'qwen-audio':         'qwen/qwen-2.5-7b-instruct',
   'qwen25-math-72b':    'qwen/qwen-2.5-72b-instruct',
   'qwq-32b-preview':    'qwen/qwq-32b',
-  'codeqwen-7b':        'qwen/qwen2.5-coder-7b-instruct',
+  'codeqwen-7b':        'qwen/qwen3-coder:free',
   'marco-o1':           'qwen/qwen3-8b',
 
   // ── DeepSeek ─────────────────────────────
@@ -118,13 +152,13 @@ const MODEL_MAP: Record<string, string> = {
   'deepseek-coder-33b': 'deepseek/deepseek-chat',
   'deepseek-coder-v2-lite': 'deepseek/deepseek-chat',
 
-  // ── 01.AI / Yi → mapped to Qwen (Yi not on OpenRouter) ──
+  // ── 01.AI / Yi ───────────────────────────
   'yi-large':           'qwen/qwen-2.5-72b-instruct',
   'yi-15-34b':          'qwen/qwen-2.5-72b-instruct',
   'yi-15-9b':           'qwen/qwen3-8b',
   'yi-15-6b':           'qwen/qwen3-8b',
   'yi-vision':          'qwen/qwen-2.5-vl-7b-instruct',
-  'yi-coder-9b':        'qwen/qwen2.5-coder-7b-instruct',
+  'yi-coder-9b':        'qwen/qwen3-coder:free',
   'yi-coder-1-5b':      'qwen/qwen3-4b:free',
 
   // ── Cohere ───────────────────────────────
@@ -139,17 +173,17 @@ const MODEL_MAP: Record<string, string> = {
   'jamba-15-mini':      'ai21/jamba-large-1.7',
   'jurassic-2':         'ai21/jamba-large-1.7',
 
-  // ── TII / Falcon → mapped to Meta (Falcon not on OpenRouter) ──
+  // ── TII / Falcon ─────────────────────────
   'falcon-180b':        'meta-llama/llama-3.3-70b-instruct:free',
   'falcon-40b':         'meta-llama/llama-3.3-70b-instruct:free',
-  'falcon-7b':          'meta-llama/llama-3.1-8b-instruct',
-  'falcon-2-11b':       'meta-llama/llama-3.1-8b-instruct',
+  'falcon-7b':          'mistralai/mistral-small-3.1-24b-instruct:free',
+  'falcon-2-11b':       'mistralai/mistral-small-3.1-24b-instruct:free',
 
   // ── NVIDIA ───────────────────────────────
-  'nemotron-4-340b':    'nvidia/llama-3.1-nemotron-70b-instruct',
+  'nemotron-4-340b':    'nvidia/nemotron-3-super-120b-a12b:free',
   'llama-31-nemotron':  'nvidia/llama-3.1-nemotron-70b-instruct',
   'mistral-nemo-minitron': 'nvidia/nemotron-nano-9b-v2:free',
-  'nvlm-d-72b':         'nvidia/llama-3.1-nemotron-70b-instruct',
+  'nvlm-d-72b':         'nvidia/nemotron-3-super-120b-a12b:free',
   'nemotron-mini-4b':   'nvidia/nemotron-nano-9b-v2:free',
 
   // ── NousResearch ─────────────────────────
@@ -158,44 +192,44 @@ const MODEL_MAP: Record<string, string> = {
   'nous-capybara':      'nousresearch/hermes-3-llama-3.1-70b',
 
   // ── Cognitive Computations ───────────────
-  'dolphin-29':         'meta-llama/llama-3.3-70b-instruct:free',
-  'dolphin-mixtral':    'mistralai/mixtral-8x7b-instruct',
+  'dolphin-29':         'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',
+  'dolphin-mixtral':    'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',
 
   // ── HuggingFace / BigCode ────────────────
-  'zephyr-7b':          'mistralai/mistral-7b-instruct-v0.1',
+  'zephyr-7b':          'mistralai/mistral-small-3.1-24b-instruct:free',
   'zephyr-141b':        'mistralai/mixtral-8x22b-instruct',
   'smollm2':            'meta-llama/llama-3.2-1b-instruct',
   'idefics3':           'meta-llama/llama-3.2-11b-vision-instruct',
   'smolvlm':            'meta-llama/llama-3.2-11b-vision-instruct',
-  'starcoder2-15b':     'qwen/qwen-2.5-coder-32b-instruct',
-  'starcoder2-7b':      'qwen/qwen2.5-coder-7b-instruct',
+  'starcoder2-15b':     'qwen/qwen3-coder:free',
+  'starcoder2-7b':      'qwen/qwen3-coder:free',
   'starcoder2-3b':      'qwen/qwen3-4b:free',
-  'starcoder':          'qwen/qwen-2.5-coder-32b-instruct',
-  'wizardcoder':        'qwen/qwen-2.5-coder-32b-instruct',
+  'starcoder':          'qwen/qwen3-coder:free',
+  'wizardcoder':        'qwen/qwen3-coder:free',
 
   // ── Community Fine-tunes ─────────────────
-  'openchat-35':        'meta-llama/llama-3.1-8b-instruct',
-  'openchat-36':        'meta-llama/llama-3.1-8b-instruct',
-  'openhermes-25':      'meta-llama/llama-3.1-8b-instruct',
+  'openchat-35':        'mistralai/mistral-small-3.1-24b-instruct:free',
+  'openchat-36':        'mistralai/mistral-small-3.1-24b-instruct:free',
+  'openhermes-25':      'mistralai/mistral-small-3.1-24b-instruct:free',
   'mythomax-13b':       'gryphe/mythomax-l2-13b',
-  'neural-chat-7b':     'meta-llama/llama-3.1-8b-instruct',
-  'solar-10-7b':        'meta-llama/llama-3.1-8b-instruct',
-  'vicuna-13b':         'meta-llama/llama-3.1-8b-instruct',
-  'vicuna-7b':          'meta-llama/llama-3.1-8b-instruct',
+  'neural-chat-7b':     'mistralai/mistral-small-3.1-24b-instruct:free',
+  'solar-10-7b':        'mistralai/mistral-small-3.1-24b-instruct:free',
+  'vicuna-13b':         'mistralai/mistral-small-3.1-24b-instruct:free',
+  'vicuna-7b':          'mistralai/mistral-small-3.1-24b-instruct:free',
   'airoboros-70b':      'meta-llama/llama-3.3-70b-instruct:free',
-  'tinyllama':          'meta-llama/llama-3.2-1b-instruct',
-  'decilm-7b':          'meta-llama/llama-3.1-8b-instruct',
-  'persimmon-8b':       'meta-llama/llama-3.1-8b-instruct',
-  'redpajama-7b':       'meta-llama/llama-3.1-8b-instruct',
-  'metamath-7b':        'meta-llama/llama-3.1-8b-instruct',
+  'tinyllama':          'qwen/qwen3-4b:free',
+  'decilm-7b':          'mistralai/mistral-small-3.1-24b-instruct:free',
+  'persimmon-8b':       'mistralai/mistral-small-3.1-24b-instruct:free',
+  'redpajama-7b':       'mistralai/mistral-small-3.1-24b-instruct:free',
+  'metamath-7b':        'qwen/qwen3-8b',
   'llemma-34b':         'meta-llama/llama-3.3-70b-instruct:free',
   'wizardmath-70b':     'meta-llama/llama-3.3-70b-instruct:free',
-  'dolly-v2':           'meta-llama/llama-3.1-8b-instruct',
+  'dolly-v2':           'mistralai/mistral-small-3.1-24b-instruct:free',
 
   // ── Databricks / Mosaic ──────────────────
   'dbrx':               'meta-llama/llama-3.3-70b-instruct:free',
   'mpt-30b':            'meta-llama/llama-3.3-70b-instruct:free',
-  'mpt-7b':             'meta-llama/llama-3.1-8b-instruct',
+  'mpt-7b':             'mistralai/mistral-small-3.1-24b-instruct:free',
 
   // ── Perplexity ───────────────────────────
   'pplx-70b-online':    'perplexity/sonar-pro',
@@ -220,10 +254,10 @@ const MODEL_MAP: Record<string, string> = {
   'hunyuan-large':      'tencent/hunyuan-a13b-instruct',
 
   // ── EleutherAI ───────────────────────────
-  'gpt-neox-20b':       'meta-llama/llama-3.1-8b-instruct',
-  'gpt-j-6b':           'meta-llama/llama-3.1-8b-instruct',
-  'pythia-12b':         'meta-llama/llama-3.1-8b-instruct',
-  'pythia-6-9b':        'meta-llama/llama-3.1-8b-instruct',
+  'gpt-neox-20b':       'mistralai/mistral-small-3.1-24b-instruct:free',
+  'gpt-j-6b':           'mistralai/mistral-small-3.1-24b-instruct:free',
+  'pythia-12b':         'mistralai/mistral-small-3.1-24b-instruct:free',
+  'pythia-6-9b':        'mistralai/mistral-small-3.1-24b-instruct:free',
   'pythia-2-8b':        'meta-llama/llama-3.2-3b-instruct:free',
 
   // ── Vision Models ───────────────────────
@@ -242,10 +276,10 @@ const MODEL_MAP: Record<string, string> = {
   'llava-onevision-72b':'qwen/qwen2.5-vl-72b-instruct',
 
   // ── Alternative Architectures ────────────
-  'rwkv-5-14b':         'meta-llama/llama-3.1-8b-instruct',
-  'rwkv-5-7b':          'meta-llama/llama-3.1-8b-instruct',
+  'rwkv-5-14b':         'mistralai/mistral-small-3.1-24b-instruct:free',
+  'rwkv-5-7b':          'mistralai/mistral-small-3.1-24b-instruct:free',
   'mamba-2-8b':         'meta-llama/llama-3.2-3b-instruct:free',
-  'striped-hyena-7b':   'meta-llama/llama-3.1-8b-instruct',
+  'striped-hyena-7b':   'mistralai/mistral-small-3.1-24b-instruct:free',
   'bloom-176b':         'meta-llama/llama-3.3-70b-instruct:free',
 
   // ── Allen AI ─────────────────────────────
@@ -254,17 +288,17 @@ const MODEL_MAP: Record<string, string> = {
   'tulu-2':             'meta-llama/llama-3.3-70b-instruct:free',
 
   // ── Code fallbacks ──────────────────────
-  'phind-codellama':    'qwen/qwen-2.5-coder-32b-instruct',
-  'magicoder':          'qwen/qwen2.5-coder-7b-instruct',
-  'opencoder':          'qwen/qwen2.5-coder-7b-instruct',
+  'phind-codellama':    'qwen/qwen3-coder:free',
+  'magicoder':          'qwen/qwen3-coder:free',
+  'opencoder':          'qwen/qwen3-coder:free',
   'refact-1-6b':        'qwen/qwen3-4b:free',
-  'granite-code-34b':   'qwen/qwen-2.5-coder-32b-instruct',
-  'granite-code-8b':    'qwen/qwen2.5-coder-7b-instruct',
+  'granite-code-34b':   'qwen/qwen3-coder:free',
+  'granite-code-8b':    'qwen/qwen3-coder:free',
 
   // ── Misc ─────────────────────────────────
   'snowflake-arctic':   'qwen/qwen-2.5-72b-instruct',
   'skywork-o1-8b':      'qwen/qwen3-8b',
-  'stablelm-2':         'meta-llama/llama-3.2-1b-instruct',
+  'stablelm-2':         'qwen/qwen3-4b:free',
   'inflection-25':      'inflection/inflection-3-pi',
   'reka-core':          'google/gemini-2.5-pro',
   'reka-flash':         'google/gemini-2.5-flash',
@@ -273,12 +307,13 @@ const MODEL_MAP: Record<string, string> = {
   'samsung-gauss-2':    'microsoft/phi-4',
   'openelm-3b':         'meta-llama/llama-3.2-3b-instruct:free',
   'openelm-1-1b':       'meta-llama/llama-3.2-1b-instruct',
-  'xgen-7b':            'meta-llama/llama-3.1-8b-instruct',
-  'codet5-plus':        'qwen/qwen2.5-coder-7b-instruct',
+  'xgen-7b':            'mistralai/mistral-small-3.1-24b-instruct:free',
+  'codet5-plus':        'qwen/qwen3-coder:free',
 };
 
-// Safe fallback model (verified free on OpenRouter)
-const FALLBACK_MODEL = 'meta-llama/llama-3.2-3b-instruct:free';
+const FREE_MODEL_IDS = new Set(
+  Object.values(MODEL_MAP).filter((id) => id.endsWith(':free'))
+);
 
 function stripQuantSuffix(id: string): string {
   return id
@@ -292,10 +327,6 @@ export function resolveOpenRouterModel(internalId: string): string | null {
   if (MODEL_MAP[baseId]) return MODEL_MAP[baseId];
   return null;
 }
-
-const FREE_MODEL_IDS = new Set(
-  Object.values(MODEL_MAP).filter((id) => id.endsWith(':free'))
-);
 
 export function isModelFree(internalId: string): boolean {
   const resolved = resolveOpenRouterModel(internalId);
@@ -311,6 +342,13 @@ function getHeaders(apiKey: string): Record<string, string> {
   };
 }
 
+function findFreeFallback(failedModel: string): string {
+  for (const free of FREE_FALLBACK_CHAIN) {
+    if (free !== failedModel) return free;
+  }
+  return FALLBACK_MODEL;
+}
+
 export async function streamChatCompletion(
   apiKey: string,
   request: ChatRequest,
@@ -320,8 +358,6 @@ export async function streamChatCompletion(
   signal?: AbortSignal
 ): Promise<void> {
   const resolvedModel = resolveOpenRouterModel(request.model) || request.model;
-
-  // If we couldn't resolve and it doesn't look like an OpenRouter ID, use fallback
   const model = resolvedModel.includes('/') ? resolvedModel : FALLBACK_MODEL;
 
   const body = {
@@ -358,14 +394,22 @@ export async function streamChatCompletion(
       msg = parsed.error?.message || parsed.message || msg;
     } catch {}
 
-    // If model not found, retry with fallback
-    if (response.status === 400 && msg.includes('not a valid model') && model !== FALLBACK_MODEL) {
+    const isCreditsError = msg.toLowerCase().includes('insufficient credits') ||
+                           msg.toLowerCase().includes('credit') ||
+                           msg.toLowerCase().includes('payment') ||
+                           msg.toLowerCase().includes('billing');
+
+    const isModelError = msg.toLowerCase().includes('not a valid model') ||
+                         msg.toLowerCase().includes('no endpoints');
+
+    if ((isCreditsError || isModelError) && model !== FALLBACK_MODEL) {
+      const fallback = findFreeFallback(model);
       return streamChatCompletion(
         apiKey,
-        { ...request, model: FALLBACK_MODEL },
+        { ...request, model: fallback },
         onChunk,
         onDone,
-        (fallbackErr) => onError(`Original model failed: ${msg}. Fallback also failed: ${fallbackErr}`),
+        onError,
         signal
       );
     }
@@ -439,12 +483,17 @@ export async function chatCompletion(
   });
 
   if (!response.ok) {
-    // If model not found, retry with fallback
-    if (response.status === 400 && model !== FALLBACK_MODEL) {
-      return chatCompletion(apiKey, { ...request, model: FALLBACK_MODEL });
+    const errText = await response.text();
+    const isCreditsOrModel = errText.toLowerCase().includes('credit') ||
+                             errText.toLowerCase().includes('not a valid') ||
+                             errText.toLowerCase().includes('no endpoints');
+
+    if (isCreditsOrModel && model !== FALLBACK_MODEL) {
+      const fallback = findFreeFallback(model);
+      return chatCompletion(apiKey, { ...request, model: fallback });
     }
-    const err = await response.text();
-    throw new Error(`OpenRouter error ${response.status}: ${err}`);
+
+    throw new Error(`OpenRouter error ${response.status}: ${errText}`);
   }
 
   const data = await response.json();

@@ -58,4 +58,6 @@ linux:
   category: Development
   artifactName: ModelForge.${ext}
 
-publish: null
+publish:
+  provider: github
+  releaseType: release
