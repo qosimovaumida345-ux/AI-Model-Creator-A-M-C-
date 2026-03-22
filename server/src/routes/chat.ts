@@ -3,8 +3,26 @@ import { v4 as uuid } from 'uuid';
 import { streamChatCompletion, chatCompletion } from '../services/openrouter.js';
 import { streamOllamaChat, checkOllamaHealth, listOllamaModels } from '../services/ollama.js';
 import { sessionStore } from '../db/store.js';
+import { forgedModelStore } from '../db/forgeStore.js';
 
 export const chatRouter = Router();
+
+// ── Helper: resolve model ID ─────────────────────────────────
+// If the model ID is a forged model UUID, return the base model ID
+// Otherwise return the model ID as-is (it's already an OpenRouter model)
+function resolveModelId(modelId: string): { actualModelId: string; systemPrompt: string | null } {
+  // Check if this is a forged model UUID
+  const forgedModel = forgedModelStore.getById(modelId);
+  if (forgedModel) {
+    return {
+      actualModelId: forgedModel.baseModelId,
+      systemPrompt: forgedModel.systemPrompt || null,
+    };
+  }
+
+  // Not a forged model, use as-is
+  return { actualModelId: modelId, systemPrompt: null };
+}
 
 // ── List sessions ────────────────────────────────────────────
 chatRouter.get('/sessions', (_, res) => {
@@ -69,8 +87,24 @@ chatRouter.post('/completions', async (req: Request, res: Response) => {
     stop,
     stream = true,
     sessionId,
-    provider = 'openrouter', // 'openrouter' | 'ollama'
+    provider = 'openrouter',
   } = req.body;
+
+  // Resolve forged model UUID to real model ID
+  const { actualModelId, systemPrompt: forgedSystemPrompt } = resolveModelId(model);
+
+  // If this is a forged model, prepend its system prompt
+  let finalMessages = [...messages];
+  if (forgedSystemPrompt) {
+    // Check if system prompt already exists
+    const hasSystem = finalMessages.some((m: { role: string }) => m.role === 'system');
+    if (!hasSystem) {
+      finalMessages = [
+        { role: 'system', content: forgedSystemPrompt },
+        ...finalMessages,
+      ];
+    }
+  }
 
   // Get API key from request header or env
   const apiKey =
@@ -112,7 +146,6 @@ chatRouter.post('/completions', async (req: Request, res: Response) => {
     };
 
     const onDone = (fullText: string, usage?: Record<string, number>) => {
-      // Save assistant message
       if (sessionId) {
         sessionStore.addMessage(sessionId, {
           id: uuid(),
@@ -120,7 +153,7 @@ chatRouter.post('/completions', async (req: Request, res: Response) => {
           content: fullText,
           timestamp: new Date().toISOString(),
           tokens: usage?.completion_tokens,
-          model,
+          model: actualModelId,
         });
       }
       if (usage) {
@@ -140,8 +173,8 @@ chatRouter.post('/completions', async (req: Request, res: Response) => {
     if (provider === 'ollama') {
       await streamOllamaChat(
         {
-          model,
-          messages,
+          model: actualModelId,
+          messages: finalMessages,
           options: { temperature, top_p, num_predict: max_tokens, repeat_penalty: presence_penalty },
           stream: true,
         },
@@ -152,7 +185,16 @@ chatRouter.post('/completions', async (req: Request, res: Response) => {
     } else {
       await streamChatCompletion(
         apiKey,
-        { model, messages, temperature, top_p, max_tokens, frequency_penalty, presence_penalty, stop },
+        {
+          model: actualModelId,
+          messages: finalMessages,
+          temperature,
+          top_p,
+          max_tokens,
+          frequency_penalty,
+          presence_penalty,
+          stop,
+        },
         onChunk,
         onDone,
         onError
@@ -166,7 +208,7 @@ chatRouter.post('/completions', async (req: Request, res: Response) => {
     if (provider === 'ollama') {
       let fullText = '';
       await streamOllamaChat(
-        { model, messages, options: { temperature, top_p, num_predict: max_tokens }, stream: false },
+        { model: actualModelId, messages: finalMessages, options: { temperature, top_p, num_predict: max_tokens }, stream: false },
         (chunk) => { fullText += chunk; },
         () => {},
         (err) => { throw new Error(err); }
@@ -178,7 +220,7 @@ chatRouter.post('/completions', async (req: Request, res: Response) => {
           role: 'assistant',
           content: fullText,
           timestamp: new Date().toISOString(),
-          model,
+          model: actualModelId,
         });
       }
 
@@ -191,7 +233,14 @@ chatRouter.post('/completions', async (req: Request, res: Response) => {
     }
 
     const result = await chatCompletion(apiKey, {
-      model, messages, temperature, top_p, max_tokens, frequency_penalty, presence_penalty, stop,
+      model: actualModelId,
+      messages: finalMessages,
+      temperature,
+      top_p,
+      max_tokens,
+      frequency_penalty,
+      presence_penalty,
+      stop,
     });
 
     if (sessionId) {
@@ -201,7 +250,7 @@ chatRouter.post('/completions', async (req: Request, res: Response) => {
         content: result.content,
         timestamp: new Date().toISOString(),
         tokens: result.usage?.completion_tokens,
-        model,
+        model: actualModelId,
       });
     }
 
