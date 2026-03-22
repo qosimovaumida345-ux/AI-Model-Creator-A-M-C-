@@ -9,7 +9,6 @@ directories:
 files:
   - "dist/**/*"
   - "electron/dist/**/*"
-  - "server/dist/**/*"
   - "package.json"
 
 win:
@@ -17,14 +16,14 @@ win:
     - target: nsis
       arch:
         - x64
-  icon: build-resources/icon.ico
+  icon: build-resources/icon.png
 
 mac:
   target:
     - target: dmg
       arch:
         - universal
-  icon: build-resources/icon.icns
+  icon: build-resources/icon.png
   category: public.app-category.developer-tools
 
 linux:
