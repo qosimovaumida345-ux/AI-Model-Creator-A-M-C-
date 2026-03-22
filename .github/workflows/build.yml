@@ -72,6 +72,8 @@ jobs:
 
       - name: Build frontend
         run: npm run build
+        env:
+          VITE_API_URL: https://ai-model-creator-fronted.onrender.com/api
 
       - name: Build electron files
         run: npm run build:electron
@@ -88,10 +90,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: builds/ModelForge-Setup.exe
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: builds/*.exe
+          path: builds/ModelForge-Setup.exe
 
   build-macos:
     runs-on: macos-latest
@@ -155,6 +163,8 @@ jobs:
 
       - name: Build frontend
         run: npm run build
+        env:
+          VITE_API_URL: https://ai-model-creator-fronted.onrender.com/api
 
       - name: Build electron files
         run: npm run build:electron
@@ -170,10 +180,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: builds/ModelForge.dmg
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - uses: actions/upload-artifact@v4
         with:
           name: macos
-          path: builds/*.dmg
+          path: builds/ModelForge.dmg
 
   build-linux:
     runs-on: ubuntu-latest
@@ -237,6 +253,8 @@ jobs:
 
       - name: Build frontend
         run: npm run build
+        env:
+          VITE_API_URL: https://ai-model-creator-fronted.onrender.com/api
 
       - name: Build electron files
         run: npm run build:electron
@@ -252,10 +270,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: builds/ModelForge.AppImage
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - uses: actions/upload-artifact@v4
         with:
           name: linux
-          path: builds/*.AppImage
+          path: builds/ModelForge.AppImage
 
   build-android:
     runs-on: ubuntu-latest
@@ -273,11 +297,13 @@ jobs:
 
       - uses: android-actions/setup-android@v3
 
-      - name: Install root dependencies
+      - name: Install dependencies
         run: npm install --no-audit --no-fund
 
       - name: Build frontend
         run: npm run build
+        env:
+          VITE_API_URL: https://ai-model-creator-fronted.onrender.com/api
 
       - name: Add and sync Capacitor Android
         run: |
@@ -295,25 +321,13 @@ jobs:
           mkdir -p builds
           cp android/app/build/outputs/apk/debug/app-debug.apk builds/ModelForge.apk
 
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: builds/ModelForge.apk
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - uses: actions/upload-artifact@v4
         with:
           name: android
           path: builds/ModelForge.apk
-
-  release:
-    needs: [build-windows, build-macos, build-linux, build-android]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: release-files
-
-      - uses: softprops/action-gh-release@v2
-        with:
-          name: "AI Model Creator ${{ github.ref_name }}"
-          files: |
-            release-files/windows/*.exe
-            release-files/macos/*.dmg
-            release-files/linux/*.AppImage
-            release-files/android/*.apk
-          token: ${{ secrets.GITHUB_TOKEN }}
