@@ -4,9 +4,9 @@ const GITHUB_RELEASES_BASE =
   'https://github.com/qosimovaumida345-ux/AI-Model-Creator-A-M-C-/releases/latest/download';
 
 const INSTALLER_URLS: Record<Exclude<Platform, 'unknown'>, string> = {
-  windows: `${GITHUB_RELEASES_BASE}/ModelForge-Setup.exe`,
-  macos: `${GITHUB_RELEASES_BASE}/ModelForge.dmg`,
-  linux: `${GITHUB_RELEASES_BASE}/ModelForge.AppImage`,
+  windows: `${GITHUB_RELEASES_BASE}/Model%20Forge%20Setup%201.0.0.exe`,
+  macos: `${GITHUB_RELEASES_BASE}/Model%20Forge-1.0.0-universal.dmg`,
+  linux: `${GITHUB_RELEASES_BASE}/Model%20Forge-1.0.0.AppImage`,
   android: `${GITHUB_RELEASES_BASE}/ModelForge.apk`,
   ios: `${GITHUB_RELEASES_BASE}/ModelForge.ipa`
 };
@@ -132,27 +132,27 @@ export function getInstallerInfo(device: DeviceInfo) {
     requirements: string;
   }> = {
     windows: {
-      fileName: 'ModelForge-Setup.exe',
+      fileName: 'Model Forge Setup 1.0.0.exe',
       format: 'exe',
-      fileSize: 85_000_000,
+      fileSize: 95_000_000,
       requirements: 'Windows 10 or later, x64'
     },
     macos: {
-      fileName: 'ModelForge.dmg',
+      fileName: 'Model Forge-1.0.0-universal.dmg',
       format: 'dmg',
-      fileSize: 90_000_000,
+      fileSize: 199_000_000,
       requirements: 'macOS 12+, Intel or Apple Silicon'
     },
     linux: {
-      fileName: 'ModelForge.AppImage',
+      fileName: 'Model Forge-1.0.0.AppImage',
       format: 'appimage',
-      fileSize: 80_000_000,
+      fileSize: 132_000_000,
       requirements: 'Linux x64'
     },
     android: {
       fileName: 'ModelForge.apk',
       format: 'apk',
-      fileSize: 45_000_000,
+      fileSize: 3_750_000,
       requirements: 'Android 10+'
     },
     ios: {
@@ -167,10 +167,10 @@ export function getInstallerInfo(device: DeviceInfo) {
     platform,
     architecture,
     downloadUrl: INSTALLER_URLS[platform],
-    isAvailable: true,
+    isAvailable: platform !== 'ios',
     fileName: meta[platform].fileName,
     fileSize: meta[platform].fileSize,
-    version: '1.0.0',
+    version: '1.0.11',
     checksum: '',
     format: meta[platform].format,
     bundledModels: [] as string[],
