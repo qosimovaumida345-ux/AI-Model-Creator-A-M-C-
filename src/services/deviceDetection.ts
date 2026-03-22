@@ -1,17 +1,52 @@
 import type { DeviceInfo, Platform, Architecture, GPUInfo } from '@/types';
 
 // ═══════════════════════════════════════════════════════════════
-// GitHub Releases URL — build qilganingizda shu yerga qo'ying
-// Hozircha null = "Coming Soon" ko'rsatadi
+// GitHub Releases download URLs
+// Build qilganingizdan keyin null -> URL qilib o'zgartiring
 // ═══════════════════════════════════════════════════════════════
-const GITHUB_RELEASES_BASE = 'https://github.com/qosimovaumida345-ux/AI-Model-Creator-A-M-C-/releases/latest/download';
+const GITHUB_RELEASES_BASE =
+  'https://github.com/qosimovaumida345-ux/AI-Model-Creator-A-M-C-/releases/latest/download';
 
 const INSTALLER_URLS: Record<string, string | null> = {
-  windows: null, // `${GITHUB_RELEASES_BASE}/ModelForge-Setup.exe` — build qilganingizda yoqing
-  macos: null,   // `${GITHUB_RELEASES_BASE}/ModelForge.dmg`
-  linux: null,   // `${GITHUB_RELEASES_BASE}/ModelForge.AppImage`
-  android: null, // `${GITHUB_RELEASES_BASE}/ModelForge.apk`
-  ios: null,     // `${GITHUB_RELEASES_BASE}/ModelForge.ipa`
+  windows: `${GITHUB_RELEASES_BASE}/ModelForge-Setup.exe`,
+  macos:   `${GITHUB_RELEASES_BASE}/ModelForge.dmg`,
+  linux:   `${GITHUB_RELEASES_BASE}/ModelForge.AppImage`,
+  android: `${GITHUB_RELEASES_BASE}/ModelForge.apk`,
+  ios:     `${GITHUB_RELEASES_BASE}/ModelForge.ipa`,
+};
+
+// ── Installer ma'lumotlari ───────────────────────────────────
+const INSTALLER_INFO = {
+  windows: {
+    fileName: 'ModelForge-Setup.exe',
+    fileSize: 85_000_000,
+    format: 'exe' as const,
+    requirements: 'Windows 10 or later, 4GB RAM minimum, x64',
+  },
+  macos: {
+    fileName: 'ModelForge.dmg',
+    fileSize: 90_000_000,
+    format: 'dmg' as const,
+    requirements: 'macOS 12 Monterey or later, Apple Silicon or Intel',
+  },
+  linux: {
+    fileName: 'ModelForge.AppImage',
+    fileSize: 80_000_000,
+    format: 'appimage' as const,
+    requirements: 'Ubuntu 20.04+ or equivalent, 4GB RAM minimum',
+  },
+  android: {
+    fileName: 'ModelForge.apk',
+    fileSize: 45_000_000,
+    format: 'apk' as const,
+    requirements: 'Android 10+ with 3GB RAM minimum',
+  },
+  ios: {
+    fileName: 'ModelForge.ipa',
+    fileSize: 50_000_000,
+    format: 'ipa' as const,
+    requirements: 'iOS 16+, sideload via AltStore or Sideloadly (no App Store)',
+  },
 };
 
 export function detectDevice(): DeviceInfo {
@@ -52,7 +87,6 @@ function detectArchitecture(ua: string): Architecture {
   if (/arm/i.test(ua)) return 'arm';
   if (/x86_64|x64|amd64|Win64|WOW64/i.test(ua)) return 'x64';
   if (/x86|i[3-6]86/i.test(ua)) return 'x86';
-
   const p = (navigator as any).userAgentData?.platform;
   if (p) {
     if (/Windows/i.test(p)) return 'x64';
@@ -179,7 +213,7 @@ export function getHardwareAssessment(device: DeviceInfo) {
           ? 'NVIDIA GPU detected — CUDA acceleration available.'
           : hasMetal
             ? 'Apple GPU detected — Metal acceleration available.'
-            : 'CPU-only inference — consider using quantized (GGUF Q4) models for best performance.'
+            : 'CPU-only inference — consider using quantized (GGUF Q4) models.'
       }`;
 
   return {
@@ -194,84 +228,27 @@ export function getHardwareAssessment(device: DeviceInfo) {
 
 export function getInstallerInfo(device: DeviceInfo) {
   const { platform, architecture } = device;
+  const version = '1.0.0';
 
-  const url = INSTALLER_URLS[platform] || null;
-  const isAvailable = url !== null;
+  if (platform === 'unknown') return null;
 
-  switch (platform) {
-    case 'windows':
-      return {
-        platform: 'windows' as const,
-        architecture,
-        downloadUrl: url,
-        isAvailable,
-        fileName: 'ModelForge-Setup.exe',
-        fileSize: 85_000_000,
-        version: '1.0.0',
-        checksum: '',
-        format: 'exe' as const,
-        bundledModels: [] as string[],
-        requirements: 'Windows 10 or later, 4GB RAM minimum',
-      };
-    case 'macos':
-      return {
-        platform: 'macos' as const,
-        architecture,
-        downloadUrl: url,
-        isAvailable,
-        fileName: 'ModelForge.dmg',
-        fileSize: 90_000_000,
-        version: '1.0.0',
-        checksum: '',
-        format: 'dmg' as const,
-        bundledModels: [] as string[],
-        requirements: 'macOS 12 or later, Apple Silicon or Intel',
-      };
-    case 'linux':
-      return {
-        platform: 'linux' as const,
-        architecture,
-        downloadUrl: url,
-        isAvailable,
-        fileName: 'ModelForge.AppImage',
-        fileSize: 80_000_000,
-        version: '1.0.0',
-        checksum: '',
-        format: 'appimage' as const,
-        bundledModels: [] as string[],
-        requirements: 'Ubuntu 20.04+ or equivalent, 4GB RAM minimum',
-      };
-    case 'android':
-      return {
-        platform: 'android' as const,
-        architecture,
-        downloadUrl: url,
-        isAvailable,
-        fileName: 'ModelForge.apk',
-        fileSize: 45_000_000,
-        version: '1.0.0',
-        checksum: '',
-        format: 'apk' as const,
-        bundledModels: [] as string[],
-        requirements: 'Android 10+ with 4GB RAM',
-      };
-    case 'ios':
-      return {
-        platform: 'ios' as const,
-        architecture: 'arm64' as const,
-        downloadUrl: url,
-        isAvailable,
-        fileName: 'ModelForge.ipa',
-        fileSize: 50_000_000,
-        version: '1.0.0',
-        checksum: '',
-        format: 'ipa' as const,
-        bundledModels: [] as string[],
-        requirements: 'iOS 16+ — Requires sideloading via AltStore',
-      };
-    default:
-      return null;
-  }
+  const url = INSTALLER_URLS[platform] ?? null;
+  const info = INSTALLER_INFO[platform as keyof typeof INSTALLER_INFO];
+  if (!info) return null;
+
+  return {
+    platform: platform as Exclude<Platform, 'unknown'>,
+    architecture,
+    downloadUrl: url,
+    isAvailable: url !== null,
+    fileName: info.fileName,
+    fileSize: info.fileSize,
+    version,
+    checksum: '',
+    format: info.format,
+    bundledModels: [] as string[],
+    requirements: info.requirements,
+  };
 }
 
 export function getPlatformIcon(platform: Platform): string {
