@@ -36,7 +36,7 @@ function m(
 }
 
 // ── Shorthand flags ──────────────────────────────────────────────
-const F:  Partial<AIModel> = { fineTunable: true };
+const F: Partial<AIModel> = { fineTunable: true };
 const OS: Partial<AIModel> = { openSource: true };
 const FR: Partial<AIModel> = { freeOnOpenRouter: true };
 const ALL: Partial<AIModel> = { ...OS, ...F, ...FR };
@@ -45,7 +45,7 @@ const ALL: Partial<AIModel> = { ...OS, ...F, ...FR };
 const OSF: Partial<AIModel> = { ...OS, ...F };
 
 // ── GGUF convenience ────────────────────────────────────────────
-const GGUF  = ['safetensors', 'gguf'] as string[];
+const GGUF = ['safetensors', 'gguf'] as string[];
 const GGUF3 = ['safetensors', 'gguf', 'onnx'] as string[];
 
 // ═════════════════════════════════════════════════════════════════
@@ -59,8 +59,10 @@ const coreModels: AIModel[] = [
   m('gpt-4o', 'GPT-4o', 'OpenAI', 'multimodal',
     'Most advanced multimodal model — text, vision, audio in one model with 128K context',
     '~1.8T', 'Proprietary',
-    { contextLength: 128000, tasks: ['text-generation', 'vision', 'audio'], freeOnOpenRouter: true,
-      benchmarks: { MMLU: 88.7, HumanEval: 90.2 }, hardwareReq: 'API only' }),
+    {
+      contextLength: 128000, tasks: ['text-generation', 'vision', 'audio'], freeOnOpenRouter: true,
+      benchmarks: { MMLU: 88.7, HumanEval: 90.2 }, hardwareReq: 'API only'
+    }),
 
   m('gpt-4-turbo', 'GPT-4 Turbo', 'OpenAI', 'text-generation',
     'GPT-4 Turbo with 128K context, vision capabilities, and knowledge up to Apr 2024',
@@ -100,8 +102,10 @@ const coreModels: AIModel[] = [
   m('whisper-openai', 'Whisper', 'OpenAI', 'audio',
     'Robust automatic speech recognition trained on 680K hours of multilingual audio',
     '1.55B', 'MIT',
-    { contextLength: 0, tasks: ['speech-recognition', 'translation'], ...OS, ...F,
-      formats: ['pytorch', 'onnx', 'ggml'], hardwareReq: '4GB VRAM' }),
+    {
+      contextLength: 0, tasks: ['speech-recognition', 'translation'], ...OS, ...F,
+      formats: ['pytorch', 'onnx', 'ggml'], hardwareReq: '4GB VRAM'
+    }),
 
   m('dall-e-3', 'DALL-E 3', 'OpenAI', 'image-generation',
     'State-of-the-art image generation with superior prompt understanding and text rendering',
@@ -144,8 +148,10 @@ const coreModels: AIModel[] = [
   m('claude-35-sonnet', 'Claude 3.5 Sonnet', 'Anthropic', 'text-generation',
     'Most intelligent Claude model — excels at coding, analysis, and complex reasoning',
     'Unknown', 'Proprietary',
-    { contextLength: 200000, benchmarks: { MMLU: 88.7, HumanEval: 92.0 },
-      hardwareReq: 'API only', freeOnOpenRouter: true }),
+    {
+      contextLength: 200000, benchmarks: { MMLU: 88.7, HumanEval: 92.0 },
+      hardwareReq: 'API only', freeOnOpenRouter: true
+    }),
 
   m('claude-3-opus', 'Claude 3 Opus', 'Anthropic', 'text-generation',
     'Most powerful Claude 3 model for highly complex tasks requiring deep analysis',
@@ -173,14 +179,18 @@ const coreModels: AIModel[] = [
   m('gemini-20-flash', 'Gemini 2.0 Flash', 'Google', 'multimodal',
     'Latest Gemini with native tool use, multimodal generation, and 1M token context',
     'Unknown', 'Proprietary',
-    { contextLength: 1048576, tasks: ['text-generation', 'vision', 'audio'],
-      freeOnOpenRouter: true, hardwareReq: 'API only' }),
+    {
+      contextLength: 1048576, tasks: ['text-generation', 'vision', 'audio'],
+      freeOnOpenRouter: true, hardwareReq: 'API only'
+    }),
 
   m('gemini-15-pro', 'Gemini 1.5 Pro', 'Google', 'multimodal',
     'Highly capable multimodal model with 2M token context window',
     'Unknown', 'Proprietary',
-    { contextLength: 2097152, tasks: ['text-generation', 'vision'],
-      freeOnOpenRouter: true, benchmarks: { MMLU: 85.9 }, hardwareReq: 'API only' }),
+    {
+      contextLength: 2097152, tasks: ['text-generation', 'vision'],
+      freeOnOpenRouter: true, benchmarks: { MMLU: 85.9 }, hardwareReq: 'API only'
+    }),
 
   m('gemini-15-flash', 'Gemini 1.5 Flash', 'Google', 'multimodal',
     'Fast and efficient Gemini model with 1M context for high-volume applications',
@@ -253,20 +263,26 @@ const coreModels: AIModel[] = [
   m('llama-31-405b', 'LLaMA 3.1 405B', 'Meta', 'text-generation',
     'Largest open-source model ever — matches GPT-4 class performance across benchmarks',
     '405B', 'Llama 3.1 License',
-    { contextLength: 131072, ...ALL, formats: GGUF,
-      benchmarks: { MMLU: 87.3, HumanEval: 89.0 }, hardwareReq: '400GB+ VRAM' }),
+    {
+      contextLength: 131072, ...ALL, formats: GGUF,
+      benchmarks: { MMLU: 87.3, HumanEval: 89.0 }, hardwareReq: '400GB+ VRAM'
+    }),
 
   m('llama-31-70b', 'LLaMA 3.1 70B', 'Meta', 'text-generation',
     'Strong 70B model with 128K context — competitive with Claude 3 Sonnet',
     '70B', 'Llama 3.1 License',
-    { contextLength: 131072, ...ALL, formats: GGUF,
-      benchmarks: { MMLU: 83.6, HumanEval: 80.5 }, hardwareReq: '48GB VRAM' }),
+    {
+      contextLength: 131072, ...ALL, formats: GGUF,
+      benchmarks: { MMLU: 83.6, HumanEval: 80.5 }, hardwareReq: '48GB VRAM'
+    }),
 
   m('llama-31-8b', 'LLaMA 3.1 8B', 'Meta', 'text-generation',
     'Efficient 8B model with 128K context — best open model in its size class',
     '8B', 'Llama 3.1 License',
-    { contextLength: 131072, ...ALL, formats: GGUF,
-      benchmarks: { MMLU: 73.0, HumanEval: 72.6 }, hardwareReq: '8GB VRAM' }),
+    {
+      contextLength: 131072, ...ALL, formats: GGUF,
+      benchmarks: { MMLU: 73.0, HumanEval: 72.6 }, hardwareReq: '8GB VRAM'
+    }),
 
   m('llama-32-90b-vision', 'LLaMA 3.2 90B Vision', 'Meta', 'vision',
     'Largest Llama vision model with 90B parameters for advanced multimodal tasks',
@@ -339,8 +355,10 @@ const coreModels: AIModel[] = [
   m('mistral-large-2', 'Mistral Large 2', 'Mistral AI', 'text-generation',
     'Flagship 123B model with 128K context — competitive with GPT-4 and Claude 3.5',
     '123B', 'Mistral License',
-    { contextLength: 131072, openSource: true, freeOnOpenRouter: true,
-      benchmarks: { MMLU: 84.0 }, hardwareReq: '80GB VRAM', formats: GGUF }),
+    {
+      contextLength: 131072, openSource: true, freeOnOpenRouter: true,
+      benchmarks: { MMLU: 84.0 }, hardwareReq: '80GB VRAM', formats: GGUF
+    }),
 
   m('mistral-nemo', 'Mistral Nemo', 'Mistral AI', 'text-generation',
     '12B model built with NVIDIA — best in class for its size with 128K context',
@@ -350,14 +368,18 @@ const coreModels: AIModel[] = [
   m('mixtral-8x22b', 'Mixtral 8x22B', 'Mistral AI', 'text-generation',
     'Large MoE model with 176B total, 44B active — strong multilingual performance',
     '176B (44B active)', 'Apache 2.0',
-    { contextLength: 65536, ...ALL, formats: GGUF, architecture: 'Mixture of Experts',
-      benchmarks: { MMLU: 77.8 }, hardwareReq: '100GB+ VRAM' }),
+    {
+      contextLength: 65536, ...ALL, formats: GGUF, architecture: 'Mixture of Experts',
+      benchmarks: { MMLU: 77.8 }, hardwareReq: '100GB+ VRAM'
+    }),
 
   m('mixtral-8x7b', 'Mixtral 8x7B', 'Mistral AI', 'text-generation',
     'Efficient MoE model with 46B total, 13B active — matches LLaMA 2 70B',
     '46B (13B active)', 'Apache 2.0',
-    { contextLength: 32768, ...ALL, formats: GGUF, architecture: 'Mixture of Experts',
-      benchmarks: { MMLU: 70.6 }, hardwareReq: '32GB VRAM' }),
+    {
+      contextLength: 32768, ...ALL, formats: GGUF, architecture: 'Mixture of Experts',
+      benchmarks: { MMLU: 70.6 }, hardwareReq: '32GB VRAM'
+    }),
 
   m('mistral-7b-v03', 'Mistral 7B v0.3', 'Mistral AI', 'text-generation',
     'Updated 7B base model with extended vocabulary and improved instruction following',
@@ -519,8 +541,10 @@ const coreModels: AIModel[] = [
   m('deepseek-coder-v2', 'DeepSeek-Coder-V2', 'DeepSeek', 'code',
     'Advanced code model rivaling GPT-4 Turbo in coding benchmarks',
     '236B (21B active)', 'DeepSeek License',
-    { contextLength: 131072, ...ALL, formats: GGUF, architecture: 'Mixture of Experts',
-      benchmarks: { HumanEval: 90.2 }, hardwareReq: '80GB VRAM' }),
+    {
+      contextLength: 131072, ...ALL, formats: GGUF, architecture: 'Mixture of Experts',
+      benchmarks: { HumanEval: 90.2 }, hardwareReq: '80GB VRAM'
+    }),
 
   m('deepseek-v2', 'DeepSeek-V2', 'DeepSeek', 'text-generation',
     'Strong MoE model with efficient MLA attention for cost-effective inference',
@@ -530,8 +554,10 @@ const coreModels: AIModel[] = [
   m('deepseek-r1', 'DeepSeek-R1', 'DeepSeek', 'text-generation',
     'Reasoning model with chain-of-thought capabilities rivaling o1',
     '671B (37B active)', 'DeepSeek License',
-    { contextLength: 131072, ...ALL, formats: GGUF, architecture: 'Mixture of Experts',
-      benchmarks: { MMLU: 90.8, MATH: 97.3 }, hardwareReq: '400GB+ VRAM' }),
+    {
+      contextLength: 131072, ...ALL, formats: GGUF, architecture: 'Mixture of Experts',
+      benchmarks: { MMLU: 90.8, MATH: 97.3 }, hardwareReq: '400GB+ VRAM'
+    }),
 
   m('deepseek-llm-67b', 'DeepSeek-LLM 67B', 'DeepSeek', 'text-generation',
     'Dense 67B model trained on 2T tokens of high-quality data',
@@ -620,14 +646,18 @@ const coreModels: AIModel[] = [
   m('jamba-15-large', 'Jamba 1.5 Large', 'AI21 Labs', 'text-generation',
     'Hybrid SSM-Transformer model with 256K context and strong long-document abilities',
     '94B (12B active)', 'Jamba License',
-    { contextLength: 262144, ...OSF, freeOnOpenRouter: true, formats: GGUF,
-      architecture: 'SSM-Transformer Hybrid', hardwareReq: '80GB VRAM' }),
+    {
+      contextLength: 262144, ...OSF, freeOnOpenRouter: true, formats: GGUF,
+      architecture: 'SSM-Transformer Hybrid', hardwareReq: '80GB VRAM'
+    }),
 
   m('jamba-15-mini', 'Jamba 1.5 Mini', 'AI21 Labs', 'text-generation',
     'Compact Jamba with efficient SSM architecture for cost-effective inference',
     '52B (12B active)', 'Jamba License',
-    { contextLength: 262144, ...OSF, freeOnOpenRouter: true, formats: GGUF,
-      architecture: 'SSM-Transformer Hybrid', hardwareReq: '32GB VRAM' }),
+    {
+      contextLength: 262144, ...OSF, freeOnOpenRouter: true, formats: GGUF,
+      architecture: 'SSM-Transformer Hybrid', hardwareReq: '32GB VRAM'
+    }),
 
   m('jurassic-2', 'Jurassic-2', 'AI21 Labs', 'text-generation',
     'AI21 Labs enterprise-grade language model for professional applications',
@@ -1498,16 +1528,16 @@ const quantDescriptions: Record<string, string> = {
   Q3_K_M: 'Aggressive quantization — smallest size, moderate quality loss',
   Q4_K_M: 'Balanced quantization — recommended for most users',
   Q5_K_M: 'Higher quality quantization with reasonable size increase',
-  Q6_K:   'Near-lossless quantization with minimal quality degradation',
-  Q8_0:   'Highest quality quantization — closest to full precision',
+  Q6_K: 'Near-lossless quantization with minimal quality degradation',
+  Q8_0: 'Highest quality quantization — closest to full precision',
 };
 
 const quantSizeMultipliers: Record<string, number> = {
   Q3_K_M: 0.35,
   Q4_K_M: 0.45,
   Q5_K_M: 0.55,
-  Q6_K:   0.65,
-  Q8_0:   0.85,
+  Q6_K: 0.65,
+  Q8_0: 0.85,
 };
 
 // Select popular open-source models that realistically have GGUF quants
@@ -1607,3 +1637,174 @@ export const allCategories: ModelCategory[] = [
   'video',
   'embedding',
 ];
+
+// ═══════════════════════════════════════════════════════════
+// LIVE OPENROUTER SYNC
+// ═══════════════════════════════════════════════════════════
+
+const OR_MODEL_MAP: Record<string, string> = {
+  'gpt-4o': 'openai/gpt-4o',
+  'gpt-4-turbo': 'openai/gpt-4-turbo',
+  'gpt-4': 'openai/gpt-4',
+  'gpt-35-turbo': 'openai/gpt-oss-20b:free',
+  'o1': 'openai/o1',
+  'o1-mini': 'openai/o3-mini',
+  'o3': 'openai/o3',
+  'codex': 'qwen/qwen3-coder:free',
+  'claude-35-sonnet': 'anthropic/claude-3.5-sonnet',
+  'claude-3-opus': 'anthropic/claude-opus-4',
+  'claude-3-haiku': 'anthropic/claude-3-haiku',
+  'claude-21': 'anthropic/claude-3.5-haiku',
+  'claude-instant': 'anthropic/claude-3.5-haiku',
+  'gemini-20-flash': 'google/gemini-2.0-flash-001',
+  'gemini-15-pro': 'google/gemini-2.5-pro',
+  'gemini-15-flash': 'google/gemini-2.5-flash',
+  'gemini-ultra': 'google/gemini-2.5-pro',
+  'gemma-2-27b': 'google/gemma-3-27b-it:free',
+  'gemma-2-9b': 'google/gemma-2-9b-it',
+  'gemma-2-2b': 'google/gemma-3-4b-it:free',
+  'gemma-7b': 'google/gemma-3-12b-it:free',
+  'llama-31-405b': 'nousresearch/hermes-3-llama-3.1-405b:free',
+  'llama-31-70b': 'meta-llama/llama-3.3-70b-instruct:free',
+  'llama-31-8b': 'meta-llama/llama-3.1-8b-instruct',
+  'llama-32-3b': 'meta-llama/llama-3.2-3b-instruct:free',
+  'llama-32-1b': 'meta-llama/llama-3.2-1b-instruct',
+  'llama-3-70b': 'meta-llama/llama-3.3-70b-instruct:free',
+  'llama-3-8b': 'meta-llama/llama-3-8b-instruct',
+  'llama-2-70b': 'meta-llama/llama-3.3-70b-instruct:free',
+  'llama-2-13b': 'meta-llama/llama-3.2-3b-instruct:free',
+  'llama-2-7b': 'meta-llama/llama-3.2-3b-instruct:free',
+  'codellama-70b': 'meta-llama/llama-3.3-70b-instruct:free',
+  'codellama-34b': 'meta-llama/llama-3.3-70b-instruct:free',
+  'codellama-7b': 'qwen/qwen3-coder:free',
+  'mistral-large-2': 'mistralai/mistral-large',
+  'mistral-nemo': 'mistralai/mistral-nemo',
+  'mixtral-8x22b': 'mistralai/mixtral-8x22b-instruct',
+  'mixtral-8x7b': 'mistralai/mixtral-8x7b-instruct',
+  'mistral-7b-v03': 'mistralai/mistral-small-3.1-24b-instruct:free',
+  'mistral-small': 'mistralai/mistral-small-3.1-24b-instruct:free',
+  'codestral': 'mistralai/codestral-2508',
+  'phi-35-moe': 'microsoft/phi-4',
+  'phi-35-mini': 'microsoft/phi-4',
+  'phi-35-vision': 'microsoft/phi-4',
+  'phi-3-medium': 'microsoft/phi-4',
+  'phi-3-small': 'microsoft/phi-4',
+  'phi-3-mini': 'microsoft/phi-4',
+  'phi-2': 'microsoft/phi-4',
+  'wizardlm-2': 'microsoft/wizardlm-2-8x22b',
+  'grok-2': 'x-ai/grok-3',
+  'grok-2-mini': 'x-ai/grok-3-mini',
+  'qwen25-72b': 'qwen/qwen-2.5-72b-instruct',
+  'qwen25-32b': 'qwen/qwen3-32b',
+  'qwen25-14b': 'qwen/qwen3-14b',
+  'qwen25-7b': 'qwen/qwen-2.5-7b-instruct',
+  'qwen25-3b': 'qwen/qwen3-4b:free',
+  'qwen25-1-5b': 'qwen/qwen3-4b:free',
+  'qwen25-coder': 'qwen/qwen3-coder:free',
+  'qwen2-vl': 'qwen/qwen-2.5-vl-7b-instruct',
+  'qwq-32b-preview': 'qwen/qwq-32b',
+  'deepseek-v25': 'deepseek/deepseek-chat',
+  'deepseek-r1': 'deepseek/deepseek-r1',
+  'deepseek-coder-v2': 'deepseek/deepseek-chat',
+  'deepseek-v2': 'deepseek/deepseek-chat',
+  'deepseek-llm-67b': 'deepseek/deepseek-chat',
+  'deepseek-coder-33b': 'deepseek/deepseek-chat',
+  'deepseek-coder-v2-lite': 'deepseek/deepseek-chat',
+  'yi-large': 'qwen/qwen-2.5-72b-instruct',
+  'yi-15-34b': 'qwen/qwen-2.5-72b-instruct',
+  'yi-15-9b': 'qwen/qwen3-8b',
+  'command-r-plus': 'cohere/command-r-plus-08-2024',
+  'command-r': 'cohere/command-r-08-2024',
+  'command': 'cohere/command-r7b-12-2024',
+  'jamba-15-large': 'ai21/jamba-large-1.7',
+  'jamba-15-mini': 'ai21/jamba-large-1.7',
+  'nemotron-4-340b': 'nvidia/nemotron-3-super-120b-a12b:free',
+  'llama-31-nemotron': 'nvidia/llama-3.1-nemotron-70b-instruct',
+  'hermes-3-70b': 'nousresearch/hermes-3-llama-3.1-70b',
+  'hermes-3-8b': 'nousresearch/hermes-2-pro-llama-3-8b',
+  'dolphin-29': 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',
+  'dolphin-mixtral': 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',
+  'glm-4': 'z-ai/glm-4.5-air:free',
+  'chatglm3-6b': 'z-ai/glm-4.5-air:free',
+  'pplx-70b-online': 'perplexity/sonar-pro',
+  'pplx-7b-online': 'perplexity/sonar',
+  'inflection-25': 'inflection/inflection-3-pi',
+  'reka-core': 'google/gemini-2.5-pro',
+  'reka-flash': 'google/gemini-2.5-flash',
+  'palmyra-x-004': 'writer/palmyra-x5',
+  'marco-o1': 'qwen/qwen3-8b',
+  'llava-16-34b': 'meta-llama/llama-3.2-11b-vision-instruct',
+  'llava-16-13b': 'meta-llama/llama-3.2-11b-vision-instruct',
+  'pixtral-12b': 'mistralai/pixtral-12b',
+  'internvl2': 'qwen/qwen2.5-vl-72b-instruct',
+  'molmo-72b': 'allenai/molmo-2-8b',
+  'molmo-7b': 'allenai/molmo-2-8b',
+  'llava-onevision-72b': 'qwen/qwen2.5-vl-72b-instruct',
+};
+
+interface ORModel {
+  id: string;
+  pricing?: { prompt: string; completion: string };
+}
+
+let _orModelsCache: ORModel[] = [];
+let _orCacheTime = 0;
+
+async function _fetchORModels(): Promise<ORModel[]> {
+  if (_orModelsCache.length > 0 && Date.now() - _orCacheTime < 3_600_000) {
+    return _orModelsCache;
+  }
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/models');
+    if (!res.ok) return _orModelsCache;
+    const data = await res.json() as { data: ORModel[] };
+    _orModelsCache = data.data || [];
+    _orCacheTime = Date.now();
+    return _orModelsCache;
+  } catch {
+    return _orModelsCache;
+  }
+}
+
+let _liveSynced: AIModel[] | null = null;
+
+export async function getLiveModels(): Promise<AIModel[]> {
+  if (_liveSynced) return _liveSynced;
+  try {
+    const orModels = await _fetchORModels();
+    if (orModels.length === 0) return allModels;
+
+    const freeIds = new Set(
+      orModels
+        .filter(m => {
+          if (m.id.endsWith(':free')) return true;
+          const p = parseFloat(m.pricing?.prompt || '1');
+          const c = parseFloat(m.pricing?.completion || '1');
+          return p === 0 && c === 0;
+        })
+        .map(m => m.id)
+    );
+
+    const availableIds = new Set(orModels.map(m => m.id));
+
+    _liveSynced = allModels.map(model => {
+      const orId = OR_MODEL_MAP[model.id];
+      if (!orId) return model;
+      return {
+        ...model,
+        freeOnOpenRouter: freeIds.has(orId),
+        apiAvailable: availableIds.has(orId) || model.apiAvailable,
+      };
+    });
+
+    return _liveSynced;
+  } catch {
+    return allModels;
+  }
+}
+
+export function resetModelsCache(): void {
+  _liveSynced = null;
+  _orModelsCache = [];
+  _orCacheTime = 0;
+}
