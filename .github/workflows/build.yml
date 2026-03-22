@@ -1,0 +1,157 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm install
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Install server dependencies
+        run: |
+          cd server
+          npm install
+
+      - name: Build Windows app
+        run: npx electron-builder --win --x64
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: builds/ModelForge-Setup.exe
+          if-no-files-found: warn
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm install
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Install server dependencies
+        run: |
+          cd server
+          npm install
+
+      - name: Build macOS app
+        run: npx electron-builder --mac --universal
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload macOS build
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: builds/ModelForge.dmg
+          if-no-files-found: warn
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm install
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Install server dependencies
+        run: |
+          cd server
+          npm install
+
+      - name: Build Linux app
+        run: npx electron-builder --linux --x64
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Linux build
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: builds/ModelForge.AppImage
+          if-no-files-found: warn
+
+  release:
+    name: Create Release
+    needs: [build-windows, build-macos, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-files
+
+      - name: List downloaded files
+        run: find release-files -type f -ls
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "AI Model Creator ${{ github.ref_name }}"
+          draft: false
+          prerelease: false
+          body: |
+            ## 🚀 AI Model Creator ${{ github.ref_name }}
+
+            ### 📥 Download:
+            | Platform | File | Size |
+            |----------|------|------|
+            | 🪟 Windows | `ModelForge-Setup.exe` | ~85 MB |
+            | 🍎 macOS | `ModelForge.dmg` | ~90 MB |
+            | 🐧 Linux | `ModelForge.AppImage` | ~80 MB |
+
+            ### 📱 Mobile:
+            - Android va iOS versiyalar tez orada!
+
+            ### 🌐 Web versiya:
+            https://ai-model-creator-a-m-c.onrender.com
+
+          files: |
+            release-files/windows-build/ModelForge-Setup.exe
+            release-files/macos-build/ModelForge.dmg
+            release-files/linux-build/ModelForge.AppImage
+          token: ${{ secrets.GITHUB_TOKEN }}
