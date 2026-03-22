@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { allModels, getCoreModels, allProviders, allCategories } from '@/data/models';
-import type { ModelCategory } from '@/types';
+import { allModels, getCoreModels, allProviders, allCategories, getLiveModels } from '@/data/models';
+import type { AIModel, ModelCategory } from '@/types';
 import { CATEGORY_COLORS, CATEGORY_LABELS } from '@/types';
 
 export default function ModelsPage() {
@@ -11,9 +11,23 @@ export default function ModelsPage() {
   const [selectedProvider, setSelectedProvider] = useState('');
   const [showVariants, setShowVariants] = useState(false);
   const [freeOnly, setFreeOnly] = useState(false);
+  const [liveModels, setLiveModels] = useState<AIModel[]>(allModels);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    getLiveModels().then((models) => {
+      setLiveModels(models);
+      setIsLoading(false);
+    }).catch(() => {
+      setLiveModels(allModels);
+      setIsLoading(false);
+    });
+  }, []);
+
+  const coreOnly = useMemo(() => liveModels.filter((m) => !m.isVariant), [liveModels]);
 
   const filtered = useMemo(() => {
-    let models = showVariants ? allModels : getCoreModels();
+    let models = showVariants ? liveModels : coreOnly;
 
     if (search) {
       const q = search.toLowerCase();
@@ -39,7 +53,7 @@ export default function ModelsPage() {
     }
 
     return models;
-  }, [search, selectedCategory, selectedProvider, showVariants, freeOnly]);
+  }, [search, selectedCategory, selectedProvider, showVariants, freeOnly, liveModels, coreOnly]);
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -47,7 +61,13 @@ export default function ModelsPage() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold">AI Models</h1>
-            <p className="text-sm text-white/40 mt-1">{filtered.length} models</p>
+            <p className="text-sm text-white/40 mt-1">
+              {isLoading ? (
+                <span className="animate-pulse">Loading live data...</span>
+              ) : (
+                <>{filtered.length} models · <span className="text-green-400">Live</span></>
+              )}
+            </p>
           </div>
         </div>
 
@@ -95,63 +115,67 @@ export default function ModelsPage() {
         </div>
 
         {/* Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filtered.slice(0, 100).map((model) => (
-            <Link
-              key={model.id}
-              to={`/model/${model.id}`}
-              className="group block"
-            >
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="p-4 rounded-xl bg-white/[0.02] border border-white/10 hover:border-white/20 hover:bg-white/[0.04] transition-all h-full"
-              >
-                <div className="flex items-start gap-3 mb-3">
-                  <div
-                    className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold border"
-                    style={{
-                      backgroundColor: `${CATEGORY_COLORS[model.category]}10`,
-                      borderColor: `${CATEGORY_COLORS[model.category]}30`,
-                      color: CATEGORY_COLORS[model.category],
-                    }}
-                  >
-                    {model.provider.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <h3 className="text-sm font-medium text-white truncate group-hover:text-cyan-400 transition-colors">
-                        {model.name}
-                      </h3>
-                      {model.freeOnOpenRouter && (
-                        <span className="px-1 py-0.5 text-[7px] font-bold bg-green-500/20 text-green-400 rounded border border-green-500/20 shrink-0">
-                          FREE
-                        </span>
-                      )}
+        {isLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <div key={i} className="p-4 rounded-xl bg-white/[0.02] border border-white/10 animate-pulse h-36" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filtered.slice(0, 100).map((model) => (
+              <Link key={model.id} to={`/model/${model.id}`} className="group block">
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-4 rounded-xl bg-white/[0.02] border border-white/10 hover:border-white/20 hover:bg-white/[0.04] transition-all h-full"
+                >
+                  <div className="flex items-start gap-3 mb-3">
+                    <div
+                      className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold border"
+                      style={{
+                        backgroundColor: `${CATEGORY_COLORS[model.category]}10`,
+                        borderColor: `${CATEGORY_COLORS[model.category]}30`,
+                        color: CATEGORY_COLORS[model.category],
+                      }}
+                    >
+                      {model.provider.slice(0, 2).toUpperCase()}
                     </div>
-                    <div className="text-[10px] text-white/30">{model.provider}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <h3 className="text-sm font-medium text-white truncate group-hover:text-cyan-400 transition-colors">
+                          {model.name}
+                        </h3>
+                        {model.freeOnOpenRouter && (
+                          <span className="px-1 py-0.5 text-[7px] font-bold bg-green-500/20 text-green-400 rounded border border-green-500/20 shrink-0">
+                            FREE
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-white/30">{model.provider}</div>
+                    </div>
                   </div>
-                </div>
 
-                <p className="text-xs text-white/30 line-clamp-2 mb-3">{model.description}</p>
+                  <p className="text-xs text-white/30 line-clamp-2 mb-3">{model.description}</p>
 
-                <div className="flex items-center gap-2 text-[10px] text-white/20">
-                  <span
-                    className="px-1.5 py-0.5 rounded border"
-                    style={{
-                      borderColor: `${CATEGORY_COLORS[model.category]}30`,
-                      color: CATEGORY_COLORS[model.category],
-                    }}
-                  >
-                    {CATEGORY_LABELS[model.category]}
-                  </span>
-                  <span>{model.params}</span>
-                  {model.openSource && <span className="text-green-400">Open</span>}
-                </div>
-              </motion.div>
-            </Link>
-          ))}
-        </div>
+                  <div className="flex items-center gap-2 text-[10px] text-white/20">
+                    <span
+                      className="px-1.5 py-0.5 rounded border"
+                      style={{
+                        borderColor: `${CATEGORY_COLORS[model.category]}30`,
+                        color: CATEGORY_COLORS[model.category],
+                      }}
+                    >
+                      {CATEGORY_LABELS[model.category]}
+                    </span>
+                    <span>{model.params}</span>
+                    {model.openSource && <span className="text-green-400">Open</span>}
+                  </div>
+                </motion.div>
+              </Link>
+            ))}
+          </div>
+        )}
 
         {filtered.length > 100 && (
           <p className="text-center text-white/20 text-sm mt-8">
@@ -159,7 +183,7 @@ export default function ModelsPage() {
           </p>
         )}
 
-        {filtered.length === 0 && (
+        {filtered.length === 0 && !isLoading && (
           <div className="text-center py-20 text-white/20">
             No models match your filters.
           </div>
