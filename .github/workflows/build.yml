@@ -73,8 +73,7 @@ jobs:
       - name: Build frontend
         run: npm run build
         env:
-          VITE_API_URL: https://ai-model-creator-fronted.onrender.com/api
-
+         VITE_API_URL: ${{ secrets.VITE_API_URL }}
       - name: Build electron files
         run: npm run build:electron
 
@@ -164,8 +163,7 @@ jobs:
       - name: Build frontend
         run: npm run build
         env:
-          VITE_API_URL: https://ai-model-creator-fronted.onrender.com/api
-
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
       - name: Build electron files
         run: npm run build:electron
 
@@ -254,8 +252,7 @@ jobs:
       - name: Build frontend
         run: npm run build
         env:
-          VITE_API_URL: https://ai-model-creator-fronted.onrender.com/api
-
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
       - name: Build electron files
         run: npm run build:electron
 
@@ -303,7 +300,7 @@ jobs:
       - name: Build frontend
         run: npm run build
         env:
-          VITE_API_URL: https://ai-model-creator-fronted.onrender.com/api
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
 
       - name: Add and sync Capacitor Android
         run: |
