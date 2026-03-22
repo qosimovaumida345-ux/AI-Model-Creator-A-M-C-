@@ -13,10 +13,11 @@
     "preview": "vite preview",
     "type-check": "tsc --noEmit",
     "build:electron": "tsc -p tsconfig.electron.json",
-    "build:server": "cd server && npm install --no-audit --no-fund && npm run build",
+    "build:server": "cd server && npm install --no-audit --no-fund && npx tsc --skipLibCheck",
     "dev:server": "cd server && npm run dev",
     "cap:sync": "npx cap sync"
   },
+
   "dependencies": {
     "@capacitor/core": "^6.2.0",
     "@react-three/drei": "^9.117.0",
