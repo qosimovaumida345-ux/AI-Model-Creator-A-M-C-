@@ -1,5 +1,5 @@
 appId: com.modelforge.app
-productName: "Model Forge"
+productName: "ModelForge"
 copyright: "Copyright © 2024 AMC Team"
 
 directories:
@@ -17,6 +17,7 @@ win:
       arch:
         - x64
   icon: build-resources/icon.png
+  artifactName: "ModelForge-Setup.exe"
 
 mac:
   target:
@@ -25,6 +26,7 @@ mac:
         - universal
   icon: build-resources/icon.png
   category: public.app-category.developer-tools
+  artifactName: "ModelForge.dmg"
 
 linux:
   target:
@@ -33,6 +35,7 @@ linux:
         - x64
   icon: build-resources/icon.png
   category: Development
+  artifactName: "ModelForge.AppImage"
 
 nsis:
   oneClick: false
