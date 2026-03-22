@@ -1,0 +1,25 @@
+{
+	"appId": "com.modelforge.app",
+	"appName": "Model Forge",
+	"webDir": "dist",
+	"server": {
+		"cleartext": true,
+		"androidScheme": "https"
+	},
+	"android": {
+		"allowMixedContent": true,
+		"webContentsDebuggingEnabled": false
+	},
+	"ios": {
+		"contentInset": "automatic",
+		"scheme": "Model Forge",
+		"webContentsDebuggingEnabled": false
+	},
+	"plugins": {
+		"App": {
+			"launchShowDuration": 0
+		},
+		"Filesystem": {},
+		"Network": {}
+	}
+}
