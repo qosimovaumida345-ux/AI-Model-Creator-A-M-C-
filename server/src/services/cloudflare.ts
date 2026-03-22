@@ -14,28 +14,28 @@ function getApiKey(): string {
 
 // Cloudflare Workers AI free models
 const CF_MODELS: Record<string, string> = {
-  'llama-31-8b':        '@cf/meta/llama-3.1-8b-instruct',
-  'llama-31-70b':       '@cf/meta/llama-3.1-70b-instruct',
-  'llama-32-3b':        '@cf/meta/llama-3.2-3b-instruct',
-  'llama-32-1b':        '@cf/meta/llama-3.2-1b-instruct',
-  'llama-3-8b':         '@cf/meta/llama-3-8b-instruct',
-  'mistral-7b-v03':     '@cf/mistral/mistral-7b-instruct-v0.2',
-  'gemma-7b':           '@hf/google/gemma-7b-it',
-  'gemma-2-2b':         '@cf/google/gemma-7b-it-lora',
-  'qwen25-7b':          '@cf/qwen/qwen1.5-7b-chat-awq',
-  'phi-2':              '@cf/microsoft/phi-2',
-  'codellama-7b':       '@hf/thebloke/codellama-7b-instruct-awq',
+  'llama-31-8b': '@cf/meta/llama-3.1-8b-instruct',
+  'llama-31-70b': '@cf/meta/llama-3.1-70b-instruct',
+  'llama-32-3b': '@cf/meta/llama-3.2-3b-instruct',
+  'llama-32-1b': '@cf/meta/llama-3.2-1b-instruct',
+  'llama-3-8b': '@cf/meta/llama-3-8b-instruct',
+  'mistral-7b-v03': '@cf/mistral/mistral-7b-instruct-v0.2',
+  'gemma-7b': '@hf/google/gemma-7b-it',
+  'gemma-2-2b': '@cf/google/gemma-7b-it-lora',
+  'qwen25-7b': '@cf/qwen/qwen1.5-7b-chat-awq',
+  'phi-2': '@cf/microsoft/phi-2',
+  'codellama-7b': '@hf/thebloke/codellama-7b-instruct-awq',
   'deepseek-coder-33b': '@hf/thebloke/deepseek-coder-6.7b-instruct-awq',
-  'openchat-35':        '@cf/openchat/openchat-3.5-0106',
-  'openhermes-25':      '@hf/thebloke/openhermes-2.5-mistral-7b-awq',
-  'neural-chat-7b':     '@hf/thebloke/neural-chat-7b-v3-1-awq',
-  'zephyr-7b':          '@hf/thebloke/zephyr-7b-beta-awq',
-  'tinyllama':          '@cf/tinyllama/tinyllama-1.1b-chat-v1.0',
-  'falcon-7b':          '@cf/tiiuae/falcon-7b-instruct',
-  'mistral-small':      '@cf/mistral/mistral-7b-instruct-v0.2',
-  'dolphin-29':         '@cf/cognitivecomputations/deepseek-math-7b-instruct',
-  'stablelm-2':         '@cf/stabilityai/stablelm-2-zephyr-1.6b',
-  'sqlcoder-7b':        '@cf/defog/sqlcoder-7b-2',
+  'openchat-35': '@cf/openchat/openchat-3.5-0106',
+  'openhermes-25': '@hf/thebloke/openhermes-2.5-mistral-7b-awq',
+  'neural-chat-7b': '@hf/thebloke/neural-chat-7b-v3-1-awq',
+  'zephyr-7b': '@hf/thebloke/zephyr-7b-beta-awq',
+  'tinyllama': '@cf/tinyllama/tinyllama-1.1b-chat-v1.0',
+  'falcon-7b': '@cf/tiiuae/falcon-7b-instruct',
+  'mistral-small': '@cf/mistral/mistral-7b-instruct-v0.2',
+  'dolphin-29': '@cf/cognitivecomputations/deepseek-math-7b-instruct',
+  'stablelm-2': '@cf/stabilityai/stablelm-2-zephyr-1.6b',
+  'sqlcoder-7b': '@cf/defog/sqlcoder-7b-2',
 };
 
 export function isCloudflareAvailable(): boolean {
@@ -112,7 +112,7 @@ export async function streamCloudflareChat(
             fullText += text;
             onChunk(text);
           }
-        } catch {}
+        } catch { }
       }
     }
 
@@ -152,4 +152,45 @@ export async function chatCloudflare(
 
   const data = await response.json();
   return data.result?.response || '';
+}
+let cachedCFModels: string[] = [];
+let cfCacheTime = 0;
+
+async function getAvailableCFModels(): Promise<string[]> {
+  if (cachedCFModels.length > 0 && Date.now() - cfCacheTime < 60 * 60 * 1000) {
+    return cachedCFModels;
+  }
+  try {
+    const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+    const apiKey = process.env.CLOUDFLARE_API_KEY;
+    if (!accountId || !apiKey) return cachedCFModels;
+
+    const response = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/models/search`,
+      {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+    if (!response.ok) return cachedCFModels;
+    const data = await response.json() as { result: { name: string }[] };
+    cachedCFModels = data.result.map((m) => m.name);
+    cfCacheTime = Date.now();
+    return cachedCFModels;
+  } catch {
+    return cachedCFModels;
+  }
+}
+
+export async function resolveCFModel(internalId: string): Promise<string> {
+  const available = await getAvailableCFModels();
+
+  const mapped = CF_MODEL_MAP[internalId];
+  if (mapped && available.includes(mapped)) return mapped;
+  if (mapped) return mapped;
+
+  const CF_FALLBACK = '@cf/meta/llama-3.1-8b-instruct';
+  return available.includes(CF_FALLBACK) ? CF_FALLBACK : (available[0] || CF_FALLBACK);
 }
