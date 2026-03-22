@@ -4,9 +4,9 @@ const GITHUB_RELEASES_BASE =
   'https://github.com/qosimovaumida345-ux/AI-Model-Creator-A-M-C-/releases/latest/download';
 
 const INSTALLER_URLS: Record<Exclude<Platform, 'unknown'>, string> = {
-  windows: `${GITHUB_RELEASES_BASE}/Model%20Forge%20Setup%201.0.0.exe`,
-  macos: `${GITHUB_RELEASES_BASE}/Model%20Forge-1.0.0-universal.dmg`,
-  linux: `${GITHUB_RELEASES_BASE}/Model%20Forge-1.0.0.AppImage`,
+  windows: `${GITHUB_RELEASES_BASE}/ModelForge-Setup.exe`,
+  macos: `${GITHUB_RELEASES_BASE}/ModelForge.dmg`,
+  linux: `${GITHUB_RELEASES_BASE}/ModelForge.AppImage`,
   android: `${GITHUB_RELEASES_BASE}/ModelForge.apk`,
   ios: `${GITHUB_RELEASES_BASE}/ModelForge.ipa`
 };
@@ -132,19 +132,19 @@ export function getInstallerInfo(device: DeviceInfo) {
     requirements: string;
   }> = {
     windows: {
-      fileName: 'Model Forge Setup 1.0.0.exe',
+      fileName: 'ModelForge-Setup.exe',
       format: 'exe',
       fileSize: 95_000_000,
       requirements: 'Windows 10 or later, x64'
     },
     macos: {
-      fileName: 'Model Forge-1.0.0-universal.dmg',
+      fileName: 'ModelForge.dmg',
       format: 'dmg',
       fileSize: 199_000_000,
       requirements: 'macOS 12+, Intel or Apple Silicon'
     },
     linux: {
-      fileName: 'Model Forge-1.0.0.AppImage',
+      fileName: 'ModelForge.AppImage',
       format: 'appimage',
       fileSize: 132_000_000,
       requirements: 'Linux x64'
