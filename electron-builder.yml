@@ -11,7 +11,7 @@ files:
   - "electron/dist/**/*"
   - "package.json"
 
-extraFiles: []
+asar: true
 
 win:
   target:

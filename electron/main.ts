@@ -1,11 +1,7 @@
-import { app, BrowserWindow } from 'electron';
-import path from 'path';
-import { fileURLToPath } from 'url';
+const { app, BrowserWindow } = require('electron');
+const path = require('path');
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-let mainWindow: BrowserWindow | null = null;
+let mainWindow: any = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -23,17 +19,13 @@ function createWindow() {
     },
   });
 
-  // electron/dist/main.js -> electron/dist/ -> electron/ -> root/
-  // dist/index.html root/dist/index.html da
   const indexPath = path.join(__dirname, '..', '..', 'dist', 'index.html');
-  
-  mainWindow.loadFile(indexPath).catch(() => {
-    // Agar topilmasa, alternativ yo'l
+  mainWindow.loadFile(indexPath).catch((err: any) => {
+    console.error('loadFile error:', err);
     const altPath = path.join(app.getAppPath(), 'dist', 'index.html');
     mainWindow?.loadFile(altPath);
   });
 
-  // DevTools ochish — qora ekran sababini ko'rish uchun
   mainWindow.webContents.openDevTools();
 
   mainWindow.on('closed', () => {
