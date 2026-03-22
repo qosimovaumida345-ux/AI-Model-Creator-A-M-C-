@@ -1,29 +1,37 @@
-name: Build All Platforms
+name: Build & Release
 
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 permissions:
   contents: write
 
 jobs:
-
   build-windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
-      - run: npm ci
-      - run: npm run build
+      - name: Install root dependencies
+        run: npm install --no-audit --no-fund
 
-      - run: cd server && npm ci && cd ..
+      - name: Build frontend
+        run: npm run build
 
-      - run: npx electron-builder --win --x64
+      - name: Build electron files
+        run: npm run build:electron
+
+      - name: Build server
+        run: npm run build:server
+
+      - name: Build Windows app
+        run: npx electron-builder --win --x64
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -36,15 +44,25 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
-      - run: npm ci
-      - run: npm run build
-      - run: cd server && npm ci && cd ..
+      - name: Install root dependencies
+        run: npm install --no-audit --no-fund
 
-      - run: npx electron-builder --mac --universal
+      - name: Build frontend
+        run: npm run build
+
+      - name: Build electron files
+        run: npm run build:electron
+
+      - name: Build server
+        run: npm run build:server
+
+      - name: Build macOS app
+        run: npx electron-builder --mac --universal
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -57,15 +75,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
-      - run: npm ci
-      - run: npm run build
-      - run: cd server && npm ci && cd ..
+      - name: Install root dependencies
+        run: npm install --no-audit --no-fund
 
-      - run: npx electron-builder --linux --x64
+      - name: Build frontend
+        run: npm run build
+
+      - name: Build electron files
+        run: npm run build:electron
+
+      - name: Build server
+        run: npm run build:server
+
+      - name: Build Linux app
+        run: npx electron-builder --linux --x64
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -78,30 +106,56 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
-      - run: npm ci
-      - run: npm run build
-      - run: npx cap sync android
+      - uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install root dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+
+      - name: Build debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug
+
+      - name: Copy APK
+        run: |
+          mkdir -p builds
+          cp android/app/build/outputs/apk/debug/app-debug.apk builds/ModelForge.apk
 
       - uses: actions/upload-artifact@v4
         with:
           name: android
-          path: android/app/build/outputs/apk/**/*.apk
-          if-no-files-found: ignore
+          path: builds/ModelForge.apk
 
   release:
-    needs: [build-windows, build-macos, build-linux]
+    needs: [build-windows, build-macos, build-linux, build-android]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
-          path: release
+          path: release-files
 
       - uses: softprops/action-gh-release@v2
         with:
           name: "AI Model Creator ${{ github.ref_name }}"
-          files: release/**/*
+          files: |
+            release-files/windows/*.exe
+            release-files/macos/*.dmg
+            release-files/linux/*.AppImage
+            release-files/android/*.apk
           token: ${{ secrets.GITHUB_TOKEN }}
