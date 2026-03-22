@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc --noEmit false 2>&1; exit 0",
+    "build": "tsc || true",
     "dev": "npx tsx watch src/index.ts",
     "start": "node dist/index.js"
   },
