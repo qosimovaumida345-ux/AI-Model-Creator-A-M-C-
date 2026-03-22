@@ -357,8 +357,16 @@ export async function streamChatCompletion(
   onError: (error: string) => void,
   signal?: AbortSignal
 ): Promise<void> {
-  const resolvedModel = resolveOpenRouterModel(request.model) || request.model;
-  const model = resolvedModel.includes('/') ? resolvedModel : FALLBACK_MODEL;
+  // Agar model ID da "/" bo'lsa — bu allaqachon OR model ID (live model)
+  // Agar yo'q bo'lsa — MODEL_MAP dan qidirамиз
+  let model: string;
+  if (request.model.includes('/')) {
+    // Live OR model — to'g'ridan-to'g'ri ishlatamiz
+    model = request.model;
+  } else {
+    const resolvedModel = resolveOpenRouterModel(request.model) || request.model;
+    model = resolvedModel.includes('/') ? resolvedModel : FALLBACK_MODEL;
+  }
 
   const body = {
     model,
@@ -469,8 +477,14 @@ export async function chatCompletion(
   apiKey: string,
   request: ChatRequest
 ): Promise<{ content: string; usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } }> {
-  const resolvedModel = resolveOpenRouterModel(request.model) || request.model;
-  const model = resolvedModel.includes('/') ? resolvedModel : FALLBACK_MODEL;
+  // Agar "/" bo'lsa — live OR model ID
+  let model: string;
+  if (request.model.includes('/')) {
+    model = request.model;
+  } else {
+    const resolvedModel = resolveOpenRouterModel(request.model) || request.model;
+    model = resolvedModel.includes('/') ? resolvedModel : FALLBACK_MODEL;
+  }
 
   const response = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
     method: 'POST',
