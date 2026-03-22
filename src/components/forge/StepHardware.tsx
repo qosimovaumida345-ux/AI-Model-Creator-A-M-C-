@@ -4,14 +4,12 @@ import { motion } from 'framer-motion';
 
 export default function StepHardware() {
   const { selectedBaseModel, selectedBaseModelName, trainableModelIds,
-    config, updateConfig, prevStep, startTraining, isTraining } = useForgeStore();
+    config, prevStep, startTraining, isTraining } = useForgeStore();
 
   const isCloudAvailable = selectedBaseModel ? trainableModelIds.includes(selectedBaseModel) : false;
 
-  // Local state for the selected hardware (default to local)
   const [selectedHardware, setSelectedHardware] = useState<'cloud' | 'local'>('local');
 
-  // If they change to a model that doesn't support cloud, force local
   useEffect(() => {
     if (!isCloudAvailable) {
       setSelectedHardware('local');
@@ -34,8 +32,10 @@ export default function StepHardware() {
   };
 
   const handleStart = () => {
-    // Save your manual choice to the config before sending to backend
-    updateConfig({ hardwareProvider: selectedHardware });
+    // Save hardware choice into config using type assertion
+    const configWithHardware = { ...config, hardwareProvider: selectedHardware } as Record<string, unknown>;
+    // Store it so the backend can read it
+    localStorage.setItem('forge-hardware', selectedHardware);
     startTraining();
   };
 
