@@ -15,5 +15,3 @@ electron/dist/
 .env
 .env.local
 .DS_Store
-package-lock.json
-server/package-lock.json

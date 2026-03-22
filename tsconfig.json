@@ -18,7 +18,9 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    "typeRoots": ["./node_modules/@types"],
+    "types": ["node", "react", "react-dom", "three", "uuid"]
   },
   "include": [
     "src/**/*.ts",
