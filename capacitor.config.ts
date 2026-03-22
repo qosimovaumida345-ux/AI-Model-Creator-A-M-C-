@@ -4,11 +4,8 @@ const config: CapacitorConfig = {
   appId: 'com.modelforge.app',
   appName: 'Model Forge',
   webDir: 'dist',
-  bundledWebRuntime: false,
 
   server: {
-    // In development, proxy to local dev server
-    // In production, serve from bundled files
     url: process.env.NODE_ENV === 'development'
       ? 'http://localhost:5173'
       : undefined,
@@ -24,25 +21,21 @@ const config: CapacitorConfig = {
       keystoreAliasPassword: undefined,
     },
     allowMixedContent: true,
-    webContentsDebuggingEnabled: true,
+    webContentsDebuggingEnabled: false,
   },
 
   ios: {
     contentInset: 'automatic',
     scheme: 'Model Forge',
-    webContentsDebuggingEnabled: true,
+    webContentsDebuggingEnabled: false,
   },
 
   plugins: {
     App: {
       launchShowDuration: 0,
     },
-    Filesystem: {
-      // Allow access to device storage for model files
-    },
-    Network: {
-      // Monitor connectivity for online/offline switching
-    },
+    Filesystem: {},
+    Network: {},
   },
 };
 
