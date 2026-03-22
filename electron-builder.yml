@@ -11,6 +11,8 @@ files:
   - "electron/dist/**/*"
   - "package.json"
 
+extraFiles: []
+
 win:
   target:
     - target: nsis
